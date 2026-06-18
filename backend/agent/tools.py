@@ -65,7 +65,7 @@ def search_customers(
         "without_product": without_product,
         "limit": limit,
     }
-    result = _api_get("/api/customers", params)
+    result = _api_get("/api/v1/customers", params)
     return json.dumps(result, indent=2, default=str)
 
 
@@ -82,7 +82,7 @@ def get_customer_profile(customer_id: int) -> str:
     Returns:
         JSON object with full customer profile
     """
-    result = _api_get(f"/api/customers/{customer_id}")
+    result = _api_get(f"/api/v1/customers/{customer_id}")
     return json.dumps(result, indent=2, default=str)
 
 
@@ -100,7 +100,7 @@ def get_customer_transactions(customer_id: int, months: int = 6) -> str:
     Returns:
         JSON with transactions list and summary statistics
     """
-    result = _api_get(f"/api/customers/{customer_id}/transactions", {"months": months})
+    result = _api_get(f"/api/v1/customers/{customer_id}/transactions", {"months": months})
     # Trim individual transactions for readability, keep summary
     if "transactions" in result and len(result["transactions"]) > 10:
         result["transactions"] = result["transactions"][:10]
@@ -121,7 +121,7 @@ def get_credit_score(customer_id: int) -> str:
     Returns:
         JSON with score, rating, and factor analysis
     """
-    result = _api_get(f"/api/customers/{customer_id}/credit-score")
+    result = _api_get(f"/api/v1/customers/{customer_id}/credit-score")
     return json.dumps(result, indent=2, default=str)
 
 
@@ -138,7 +138,7 @@ def check_product_eligibility(customer_id: int) -> str:
     Returns:
         JSON with list of products and their eligibility details
     """
-    result = _api_get(f"/api/customers/{customer_id}/product-eligibility")
+    result = _api_get(f"/api/v1/customers/{customer_id}/product-eligibility")
     return json.dumps(result, indent=2, default=str)
 
 

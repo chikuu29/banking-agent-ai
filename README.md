@@ -23,14 +23,14 @@ Built with **LangGraph** (ReAct Agent) + **FastAPI** (Mock Banking APIs) + **Rea
                                         │  ┌──────────▼────────────────────┐  │
                                         │  │    Mock Banking REST APIs     │  │
                                         │  │                               │  │
-                                        │  │  GET /api/customers           │  │
-                                        │  │  GET /api/customers/{id}      │  │
-                                        │  │  GET /api/customers/{id}/     │  │
+                                        │  │  GET /api/v1/customers        │  │
+                                        │  │  GET /api/v1/customers/{id}   │  │
+                                        │  │  GET /api/v1/customers/{id}/  │  │
                                         │  │      transactions             │  │
-                                        │  │  GET /api/customers/{id}/     │  │
+                                        │  │  GET /api/v1/customers/{id}/  │  │
                                         │  │      credit-score             │  │
-                                        │  │  GET /api/products            │  │
-                                        │  │  GET /api/customers/{id}/     │  │
+                                        │  │  GET /api/v1/products         │  │
+                                        │  │  GET /api/v1/customers/{id}/  │  │
                                         │  │      product-eligibility      │  │
                                         │  └──────────┬────────────────────┘  │
                                         │             │                       │
@@ -63,13 +63,13 @@ Agent (LangGraph ReAct):
   ├─ 🧠 REASON: "I need high-income customers with good credit who don't have a personal loan"
   │
   ├─ 🔧 TOOL: search_customers(min_income=800000, min_credit_score=700, without_product="personal_loan")
-  │   └─ → HTTP GET /api/customers?min_income=800000&min_credit_score=700&without_product=personal_loan
+  │   └─ → HTTP GET /api/v1/customers?min_income=800000&min_credit_score=700&without_product=personal_loan
   │   └─ ← Returns 12 matching customers
   │
   ├─ 🧠 REASON: "Let me score the top candidates for conversion likelihood"
   │
   ├─ 🔧 TOOL: get_credit_score(customer_id=42)
-  │   └─ → HTTP GET /api/customers/42/credit-score
+  │   └─ → HTTP GET /api/v1/customers/42/credit-score
   │   └─ ← Score: 780, Rating: Excellent
   │
   ├─ 🔧 TOOL: score_lead_conversion(customer_id=42, product_type="personal_loan")
@@ -91,11 +91,11 @@ The agent has **7 tools**, each wrapping a real API call or internal service:
 
 | Tool | API Endpoint | Purpose |
 |------|-------------|---------|
-| `search_customers` | `GET /api/customers` | Filter customers by income, credit score, tier, city, product ownership |
-| `get_customer_profile` | `GET /api/customers/{id}` | Full 360° customer view with demographics and interactions |
-| `get_customer_transactions` | `GET /api/customers/{id}/transactions` | Transaction history with spending analysis and EMI burden |
-| `get_credit_score` | `GET /api/customers/{id}/credit-score` | Credit score with factor breakdown |
-| `check_product_eligibility` | `GET /api/customers/{id}/product-eligibility` | Product eligibility check with fit scores |
+| `search_customers` | `GET /api/v1/customers` | Filter customers by income, credit score, tier, city, product ownership |
+| `get_customer_profile` | `GET /api/v1/customers/{id}` | Full 360° customer view with demographics and interactions |
+| `get_customer_transactions` | `GET /api/v1/customers/{id}/transactions` | Transaction history with spending analysis and EMI burden |
+| `get_credit_score` | `GET /api/v1/customers/{id}/credit-score` | Credit score with factor breakdown |
+| `check_product_eligibility` | `GET /api/v1/customers/{id}/product-eligibility` | Product eligibility check with fit scores |
 | `score_lead_conversion` | *Internal scoring engine* | Multi-factor conversion scoring (0-100) |
 | `generate_outreach_message` | *LLM-powered generator* | Personalized WhatsApp/Email/SMS messages |
 
@@ -169,7 +169,7 @@ cp .env.example .env
 ```bash
 cd backend
 uv sync                    # Install Python dependencies
-uv run python main.py      # Starts FastAPI on http://localhost:8000
+uv run uvicorn main:app --reload      # Starts FastAPI with auto-reload on http://localhost:8000
 ```
 
 The database will be automatically seeded with 150 synthetic customers on first run.
@@ -189,9 +189,9 @@ Navigate to **http://localhost:5173** — the chat interface will connect to the
 ### 5. Verify APIs (Optional)
 
 ```bash
-curl http://localhost:8000/api/health
-curl http://localhost:8000/api/customers?limit=3
-curl http://localhost:8000/api/customers/1/credit-score
+curl http://localhost:8000/api/v1/health
+curl http://localhost:8000/api/v1/customers?limit=3
+curl http://localhost:8000/api/v1/customers/1/credit-score
 ```
 
 ---

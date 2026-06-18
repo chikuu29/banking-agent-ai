@@ -14,7 +14,7 @@ from api.schemas import ProductInfo, EligibilityResult, ProductEligibilityRespon
 router = APIRouter(tags=["Products"])
 
 
-@router.get("/api/products", response_model=list[ProductInfo])
+@router.get("/api/v1/products", response_model=list[ProductInfo])
 def list_products(db: Session = Depends(get_db)):
     """List all banking products available for recommendation.
     
@@ -25,7 +25,7 @@ def list_products(db: Session = Depends(get_db)):
 
 
 @router.get(
-    "/api/customers/{customer_id}/product-eligibility",
+    "/api/v1/customers/{customer_id}/product-eligibility",
     response_model=ProductEligibilityResponse,
 )
 def check_product_eligibility(customer_id: int, db: Session = Depends(get_db)):

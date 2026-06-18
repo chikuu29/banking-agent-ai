@@ -492,8 +492,8 @@ python -c "from agent.graph import create_agent; print('OK')"  # Import check
 ```
 
 ### Manual Verification
-1. `cd backend && pip install -r requirements.txt && python main.py` — APIs at http://localhost:8000
-2. `cd frontend && npm install && npm run dev` — UI at http://localhost:5173
+1. `cd backend && uv run uvicorn main:app --reload` — APIs at http://localhost:8000
+2. `cd frontend && pnpm dev` — UI at http://localhost:5173
 3. Test all 3 demo use cases via the Quick Action buttons
 4. Verify tool call cards appear for every API call
 5. Verify outreach messages are personalized (mention customer name, specific data)
@@ -501,10 +501,10 @@ python -c "from agent.graph import create_agent; print('OK')"  # Import check
 
 ### API Verification
 ```bash
-curl http://localhost:8000/api/customers?limit=5
-curl http://localhost:8000/api/customers/1
-curl http://localhost:8000/api/customers/1/transactions
-curl http://localhost:8000/api/customers/1/credit-score
-curl http://localhost:8000/api/products
-curl http://localhost:8000/api/customers/1/product-eligibility
+curl http://localhost:8000/api/v1/customers?limit=5
+curl http://localhost:8000/api/v1/customers/1
+curl http://localhost:8000/api/v1/customers/1/transactions
+curl http://localhost:8000/api/v1/customers/1/credit-score
+curl http://localhost:8000/api/v1/products
+curl http://localhost:8000/api/v1/customers/1/product-eligibility
 ```

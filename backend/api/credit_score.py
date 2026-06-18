@@ -11,7 +11,7 @@ from data.database import get_db
 from data.models import Customer, Transaction
 from api.schemas import CreditScoreResponse, CreditFactor
 
-router = APIRouter(prefix="/api/customers", tags=["Credit Score"])
+router = APIRouter(prefix="/api/v1/customers", tags=["Credit Score"])
 
 
 def _analyze_credit_factors(customer: Customer, db: Session) -> list[CreditFactor]:

@@ -83,7 +83,7 @@ app.include_router(products_router)
 
 # --- Health Check ---
 
-@app.get("/api/health")
+@app.get("/api/v1/health")
 def health_check():
     """Health check endpoint."""
     from data.database import SessionLocal
@@ -99,7 +99,7 @@ def health_check():
 
 # --- WebSocket Chat Endpoint ---
 
-@app.websocket("/api/chat")
+@app.websocket("/api/v1/chat")
 async def chat_websocket(websocket: WebSocket):
     """WebSocket endpoint for streaming agent conversations.
     

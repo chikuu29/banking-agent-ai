@@ -43,7 +43,7 @@ if (-not (Test-Path "frontend\node_modules")) {
 }
 
 Write-Host "🚀 Starting Backend (FastAPI) in a new window..." -ForegroundColor Green
-Start-Process $Shell -ArgumentList "-NoExit", "-Command", "`$Host.UI.RawUI.WindowTitle = 'Banking Agent - FastAPI Backend'; cd backend; uv run python main.py"
+Start-Process $Shell -ArgumentList "-NoExit", "-Command", "`$Host.UI.RawUI.WindowTitle = 'Banking Agent - FastAPI Backend'; cd backend; uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000"
 
 Write-Host "🚀 Starting Frontend (React + Vite) in a new window..." -ForegroundColor Green
 Start-Process $Shell -ArgumentList "-NoExit", "-Command", "`$Host.UI.RawUI.WindowTitle = 'Banking Agent - Vite Frontend'; cd frontend; pnpm dev"

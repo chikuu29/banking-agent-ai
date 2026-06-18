@@ -18,7 +18,7 @@ export function useChat() {
 
     setConnectionStatus('connecting')
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat`)
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/v1/chat`)
 
     ws.onopen = () => {
       setConnectionStatus('connected')

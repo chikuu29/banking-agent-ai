@@ -13,7 +13,7 @@ from data.database import get_db
 from data.models import Customer, Interaction
 from api.schemas import CustomerSummary, CustomerProfile, InteractionRecord
 
-router = APIRouter(prefix="/api/customers", tags=["Customers"])
+router = APIRouter(prefix="/api/v1/customers", tags=["Customers"])
 
 
 @router.get("", response_model=list[CustomerSummary])

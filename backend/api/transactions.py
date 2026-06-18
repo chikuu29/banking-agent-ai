@@ -13,7 +13,7 @@ from data.database import get_db
 from data.models import Customer, Transaction
 from api.schemas import TransactionRecord, TransactionSummary, TransactionResponse
 
-router = APIRouter(prefix="/api/customers", tags=["Transactions"])
+router = APIRouter(prefix="/api/v1/customers", tags=["Transactions"])
 
 
 @router.get("/{customer_id}/transactions", response_model=TransactionResponse)

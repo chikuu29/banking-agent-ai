@@ -8,7 +8,7 @@ export default function Sidebar({ onSendMessage, onNewChat, theme, onToggleTheme
 
   // Fetch stats on mount
   useEffect(() => {
-    fetch('/api/health')
+    fetch('/api/v1/health')
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(() => setStats(null))
@@ -101,12 +101,12 @@ export default function Sidebar({ onSendMessage, onNewChat, theme, onToggleTheme
         <div className="sidebar-section">
           <div className="sidebar-section-title">Mock APIs</div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', lineHeight: 1.8 }}>
-            <div>GET /api/customers</div>
-            <div>GET /api/customers/:id</div>
-            <div>GET /api/customers/:id/transactions</div>
-            <div>GET /api/customers/:id/credit-score</div>
-            <div>GET /api/products</div>
-            <div>GET /api/customers/:id/product-eligibility</div>
+            <div>GET /api/v1/customers</div>
+            <div>GET /api/v1/customers/:id</div>
+            <div>GET /api/v1/customers/:id/transactions</div>
+            <div>GET /api/v1/customers/:id/credit-score</div>
+            <div>GET /api/v1/products</div>
+            <div>GET /api/v1/customers/:id/product-eligibility</div>
           </div>
         </div>
       </div>
