@@ -4,11 +4,23 @@ import { useState, useRef, useCallback, useEffect } from 'react'
  * Custom hook for WebSocket-based chat with the LangGraph agent.
  * Manages connection lifecycle, message state, tool calls, and streaming.
  */
+const getSessionIdFromUrl = () => {
+  const match = window.location.pathname.match(/\/v1\/agent\/c\/([^/]+)/)
+  return match ? match[1] : null
+}
+
 export function useChat() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('disconnected') // disconnected, connecting, connected
-  const [threadId, setThreadId] = useState(() => crypto.randomUUID())
+  const [threadId, setThreadId] = useState(() => {
+    const urlId = getSessionIdFromUrl()
+    if (urlId) return urlId
+    
+    const newId = crypto.randomUUID()
+    window.history.replaceState(null, '', `/v1/agent/c/${newId}`)
+    return newId
+  })
   const wsRef = useRef(null)
   const pendingToolCalls = useRef(new Map())
 
@@ -127,11 +139,54 @@ export function useChat() {
 
   // Start a new conversation
   const newChat = useCallback(() => {
+    const newId = crypto.randomUUID()
+    window.history.pushState(null, '', `/v1/agent/c/${newId}`)
     setMessages([])
-    setThreadId(crypto.randomUUID())
+    setThreadId(newId)
     setIsLoading(false)
     pendingToolCalls.current.clear()
   }, [])
+
+  // Listen for browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlId = getSessionIdFromUrl()
+      if (urlId && urlId !== threadId) {
+        setThreadId(urlId)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [threadId])
+
+  // Fetch chat history from the backend when threadId changes
+  useEffect(() => {
+    let active = true
+    setIsLoading(true)
+
+    fetch(`/api/v1/chat/${threadId}/history`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch history')
+        return res.json()
+      })
+      .then(data => {
+        if (active) {
+          setMessages(data.messages || [])
+          setIsLoading(false)
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load chat history:', err)
+        if (active) {
+          setMessages([])
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [threadId])
 
   // Connect on mount
   useEffect(() => {

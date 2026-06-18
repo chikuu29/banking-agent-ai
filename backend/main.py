@@ -97,6 +97,101 @@ def health_check():
     }
 
 
+# --- Chat History Endpoint ---
+
+def serialize_messages(messages):
+    serialized = []
+    tool_calls_map = {}
+    
+    for msg in messages:
+        msg_type = msg.__class__.__name__
+        
+        # Extract text content cleanly
+        content = ""
+        if hasattr(msg, "content"):
+            if isinstance(msg.content, str):
+                content = msg.content
+            elif isinstance(msg.content, list):
+                parts = []
+                for part in msg.content:
+                    if isinstance(part, str):
+                        parts.append(part)
+                    elif isinstance(part, dict):
+                        if part.get("type") == "text" and "text" in part:
+                            parts.append(part["text"])
+                        elif "text" in part:
+                            parts.append(part["text"])
+                content = "".join(parts)
+            else:
+                content = str(msg.content)
+
+        if msg_type in ("HumanMessage", "HumanMessageChunk"):
+            serialized.append({
+                "id": getattr(msg, "id", str(uuid.uuid4())),
+                "type": "user",
+                "content": content,
+                "timestamp": None
+            })
+        elif msg_type in ("AIMessage", "AIMessageChunk"):
+            tool_calls = getattr(msg, "tool_calls", [])
+            if tool_calls:
+                for tc in tool_calls:
+                    tc_id = tc.get("id")
+                    item = {
+                        "id": tc_id,
+                        "type": "tool_call",
+                        "name": tc.get("name"),
+                        "args": tc.get("args"),
+                        "status": "done",
+                        "result": None,
+                        "timestamp": None
+                    }
+                    serialized.append(item)
+                    if tc_id:
+                        tool_calls_map[tc_id] = item
+            
+            if content.strip():
+                serialized.append({
+                    "id": getattr(msg, "id", str(uuid.uuid4())),
+                    "type": "assistant",
+                    "content": content,
+                    "timestamp": None
+                })
+        elif msg_type in ("ToolMessage", "ToolMessageChunk"):
+            tc_id = getattr(msg, "tool_call_id", None)
+            if tc_id and tc_id in tool_calls_map:
+                tool_calls_map[tc_id]["result"] = content
+                tool_calls_map[tc_id]["status"] = "done"
+            else:
+                serialized.append({
+                    "id": getattr(msg, "id", str(uuid.uuid4())),
+                    "type": "tool_result",
+                    "name": getattr(msg, "name", "unknown"),
+                    "result": content,
+                    "timestamp": None
+                })
+    return serialized
+
+
+@app.get("/api/v1/chat/{thread_id}/history")
+def get_chat_history(thread_id: str):
+    """Retrieve formatted chat history for a given thread ID."""
+    config = {"configurable": {"thread_id": thread_id}}
+    agent = app.state.agent
+    
+    try:
+        state = agent.get_state(config)
+        messages = state.values.get("messages", [])
+    except Exception as e:
+        print(f"[ERROR] Failed to retrieve agent state for history: {e}")
+        messages = []
+        
+    return {
+        "thread_id": thread_id,
+        "messages": serialize_messages(messages)
+    }
+
+
 # --- WebSocket Chat Endpoint ---
 
 @app.websocket("/api/v1/chat")
@@ -163,9 +258,26 @@ async def chat_websocket(websocket: WebSocket):
                                 
                                 # Check for text content (final response)
                                 if hasattr(msg, "content") and msg.content and not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                                    content_str = ""
+                                    if isinstance(msg.content, str):
+                                        content_str = msg.content
+                                    elif isinstance(msg.content, list):
+                                        parts = []
+                                        for part in msg.content:
+                                            if isinstance(part, str):
+                                                parts.append(part)
+                                            elif isinstance(part, dict):
+                                                if part.get("type") == "text" and "text" in part:
+                                                    parts.append(part["text"])
+                                                elif "text" in part:
+                                                    parts.append(part["text"])
+                                        content_str = "".join(parts)
+                                    else:
+                                        content_str = str(msg.content)
+
                                     await websocket.send_json({
                                         "type": "agent_message",
-                                        "content": msg.content,
+                                        "content": content_str,
                                     })
 
                 # Signal completion

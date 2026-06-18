@@ -46,6 +46,15 @@ class MockAgent:
             "score_lead_conversion": score_lead_conversion,
             "generate_outreach_message": generate_outreach_message,
         }
+        self.state_db = {}
+
+    def get_state(self, config: dict):
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        messages = self.state_db.get(thread_id, [])
+        class MockState:
+            def __init__(self, messages):
+                self.values = {"messages": messages}
+        return MockState(messages)
 
     async def _run_tool(self, name: str, args: dict) -> str:
         """Run a tool in a separate thread to avoid blocking the event loop."""
@@ -59,7 +68,68 @@ class MockAgent:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
+    def _record_event_in_history(self, thread_id: str, event: dict):
+        from langchain_core.messages import AIMessage, ToolMessage
+        
+        if thread_id not in self.state_db:
+            self.state_db[thread_id] = []
+        state_msgs = self.state_db[thread_id]
+        
+        if "agent" in event:
+            agent_data = event["agent"]
+            for msg in agent_data.get("messages", []):
+                # Check if it has tool calls
+                tool_calls = []
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        tool_calls.append({
+                            "name": tc.get("name"),
+                            "args": tc.get("args"),
+                            "id": tc.get("id") or f"call_{tc.get('name')}_{len(state_msgs)}"
+                        })
+                # Check if we should append
+                state_msgs.append(AIMessage(content=msg.content, tool_calls=tool_calls))
+                
+        elif "tools" in event:
+            tools_data = event["tools"]
+            for msg in tools_data.get("messages", []):
+                # Find the corresponding tool call in the state messages to get the id
+                name = getattr(msg, "name", "unknown")
+                content = getattr(msg, "content", "")
+                
+                # Search backwards for the most recent AIMessage that had a tool call with this name
+                tool_call_id = f"tool_{name}_{len(state_msgs)}"
+                for m in reversed(state_msgs):
+                    if isinstance(m, AIMessage) and m.tool_calls:
+                        matching_tc = next((tc for tc in m.tool_calls if tc.get("name") == name), None)
+                        if matching_tc:
+                            tool_call_id = matching_tc.get("id")
+                            break
+                            
+                state_msgs.append(ToolMessage(content=content, name=name, tool_call_id=tool_call_id))
+
     async def astream(self, input_data: Dict[str, Any], config: Dict[str, Any] = None, stream_mode: str = "updates") -> AsyncGenerator[Dict[str, Any], None]:
+        thread_id = config.get("configurable", {}).get("thread_id", "default") if config else "default"
+        if thread_id not in self.state_db:
+            self.state_db[thread_id] = []
+
+        # Record user message
+        messages = input_data.get("messages", [])
+        if messages:
+            user_msg = messages[-1]
+            user_message_text = user_msg[1] if isinstance(user_msg, tuple) else getattr(user_msg, "content", str(user_msg))
+            state_msgs = self.state_db[thread_id]
+            if not state_msgs or state_msgs[-1].content != user_message_text:
+                from langchain_core.messages import HumanMessage
+                state_msgs.append(HumanMessage(content=user_message_text))
+
+        # We will wrap the internal generator to capture yielded events
+        async for event in self._astream_internal(input_data, config, stream_mode):
+            # Record events into history
+            self._record_event_in_history(thread_id, event)
+            yield event
+
+    async def _astream_internal(self, input_data: Dict[str, Any], config: Dict[str, Any] = None, stream_mode: str = "updates") -> AsyncGenerator[Dict[str, Any], None]:
         """Async generator simulating agent stream execution."""
         messages = input_data.get("messages", [])
         if not messages:

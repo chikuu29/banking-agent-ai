@@ -7,11 +7,15 @@ import ReactMarkdown from 'react-markdown'
 export default function MessageBubble({ message }) {
   const { type, content } = message
 
+  const contentString = typeof content === 'string'
+    ? content
+    : (content && typeof content === 'object' ? JSON.stringify(content) : String(content || ''));
+
   if (type === 'error') {
     return (
       <div className="error-banner">
         <span>⚠️</span>
-        <span>{content}</span>
+        <span>{contentString}</span>
       </div>
     )
   }
@@ -23,9 +27,9 @@ export default function MessageBubble({ message }) {
       </div>
       <div className="message-bubble">
         {type === 'assistant' ? (
-          <ReactMarkdown>{content}</ReactMarkdown>
+          <ReactMarkdown>{contentString}</ReactMarkdown>
         ) : (
-          content
+          contentString
         )}
       </div>
     </div>
