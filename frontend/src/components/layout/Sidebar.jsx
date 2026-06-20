@@ -94,7 +94,7 @@ export default function Sidebar({
         {/* Recent Conversations */}
         <div className="flex-1 flex flex-col min-h-0 gap-2">
           <div className="font-display text-[12.8px] font-black uppercase tracking-wider text-text-primary mb-2 flex items-center gap-1.5">
-            <span>📁</span> ACTIVE_THREADS
+            <span>📁</span> HISTORY
           </div>
           <div className="flex-1 flex flex-col gap-1 overflow-y-auto">
             {threads.length > 0 ? (

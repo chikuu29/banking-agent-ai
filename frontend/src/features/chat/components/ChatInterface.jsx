@@ -69,6 +69,7 @@ export default function ChatInterface({ user, threadId, messages, isLoading, con
   }
 
   const hasMessages = messages.length > 0
+  const activeToolCall = [...messages].reverse().find(msg => msg.type === 'tool_call' && msg.status === 'calling')
 
   const suggestions = [
     {
@@ -183,7 +184,11 @@ export default function ChatInterface({ user, threadId, messages, isLoading, con
                 <span className="w-2 h-2 bg-black rounded-full inline-block animate-[thinking-bounce_1.4s_infinite_ease-in-out_both]" style={{ animationDelay: '-0.16s' }}></span>
                 <span className="w-2 h-2 bg-black rounded-full inline-block animate-[thinking-bounce_1.4s_infinite_ease-in-out_both]"></span>
               </div>
-              <span>Agent is thinking...</span>
+              <span>
+                {activeToolCall 
+                  ? `Executing tool: ${activeToolCall.name}...` 
+                  : 'Agent is thinking...'}
+              </span>
             </div>
           )}
           <div ref={messagesEndRef} />

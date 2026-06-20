@@ -4,10 +4,14 @@ Simulates the agent reasoning process, tool execution, and response generation,
 making it look like a fully functioning LangGraph ReAct agent to the client.
 """
 
+import logging
 import asyncio
 import json
 import re
+import time
 from typing import AsyncGenerator, Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 class MockAIMessage:
     def __init__(self, content="", tool_calls=None, usage_metadata=None):
@@ -63,14 +67,22 @@ class MockAgent:
 
     async def _run_tool(self, name: str, args: dict) -> str:
         """Run a tool in a separate thread to avoid blocking the event loop."""
+        logger.info("  🔧 [MockAgent] Simulating tool execution: %s with args=%s", name, args)
+        start = time.perf_counter()
         tool = self.tools.get(name)
         if not tool:
+            logger.warning("  ✗ [MockAgent] Tool %s not found!", name)
             return json.dumps({"error": f"Tool {name} not found"})
         try:
             # Execute the tool's invoke method in a thread pool
             result = await asyncio.to_thread(tool.invoke, args)
+            elapsed = (time.perf_counter() - start) * 1000
+            logger.info("  ✓ [MockAgent] Simulated tool %s success in %.1fms (response size: %d bytes)",
+                        name, elapsed, len(result))
             return result
         except Exception as e:
+            elapsed = (time.perf_counter() - start) * 1000
+            logger.error("  ✗ [MockAgent] Simulated tool %s failed in %.1fms: %s", name, elapsed, e)
             return json.dumps({"error": str(e)})
 
     def _record_event_in_history(self, thread_id: str, event: dict):
@@ -124,6 +136,7 @@ class MockAgent:
 
         # Record user message
         messages = input_data.get("messages", [])
+        user_message_text = ""
         if messages:
             user_msg = messages[-1]
             user_message_text = user_msg[1] if isinstance(user_msg, tuple) else getattr(user_msg, "content", str(user_msg))
@@ -132,16 +145,23 @@ class MockAgent:
                 from langchain_core.messages import HumanMessage
                 state_msgs.append(HumanMessage(content=user_message_text))
 
+        logger.info("[MockAgent] Starting streaming response for thread=%s, query='%s'", thread_id, user_message_text[:80])
+
         # We will wrap the internal generator to capture yielded events
+        event_count = 0
         async for event in self._astream_internal(input_data, config, stream_mode):
+            event_count += 1
             # Record events into history
             self._record_event_in_history(thread_id, event)
             yield event
+
+        logger.info("[MockAgent] Stream complete for thread=%s — %d events yielded", thread_id, event_count)
 
     async def _astream_internal(self, input_data: Dict[str, Any], config: Dict[str, Any] = None, stream_mode: str = "updates") -> AsyncGenerator[Dict[str, Any], None]:
         """Async generator simulating agent stream execution."""
         messages = input_data.get("messages", [])
         if not messages:
+            logger.warning("[MockAgent] No messages provided to stream execution.")
             yield {"agent": {"messages": [MockAIMessage(content="Hello! How can I assist you today?")]}}
             return
 
@@ -161,7 +181,7 @@ class MockAgent:
                         rm_name = user.full_name
                         rm_id = user.assigned_rm_id
             except Exception as e:
-                print(f"[ERROR] MockAgent failed to query RM: {e}")
+                logger.error("[MockAgent] Failed to query RM for thread %s: %s", thread_id, e)
             finally:
                 db.close()
 
@@ -175,12 +195,14 @@ class MockAgent:
         
         if match_id:
             customer_id = int(match_id.group(1))
+            logger.info("[MockAgent] Query matched 'Deep Customer Analysis' (customer_id=%d) for thread %s", customer_id, thread_id)
             async for event in self._stream_customer_analysis(customer_id, rm_name, rm_id):
                 yield event
             return
 
         # Check for Use Case 1: Personal Loan Campaign
         if "personal loan" in user_message_text_lower or "loan" in user_message_text_lower:
+            logger.info("[MockAgent] Query matched 'Personal Loan Campaign' for thread %s", thread_id)
             async for event in self._stream_personal_loan_campaign(rm_name, rm_id):
                 yield event
             return
@@ -189,11 +211,13 @@ class MockAgent:
         if "credit card" in user_message_text_lower or "card" in user_message_text_lower:
             tier = "Gold" if "gold" in user_message_text_lower else None
             city = "Mumbai" if "mumbai" in user_message_text_lower else None
+            logger.info("[MockAgent] Query matched 'Credit Card Campaign' (tier=%s, city=%s) for thread %s", tier, city, thread_id)
             async for event in self._stream_credit_card_campaign(rm_name, rm_id, tier=tier, city=city):
                 yield event
             return
 
         # General/fallback case
+        logger.info("[MockAgent] Query did not match predefined scenario, showing fallback help for thread %s", thread_id)
         async for event in self._stream_fallback_response():
             yield event
 
@@ -214,6 +238,7 @@ class MockAgent:
 
     async def _stream_personal_loan_campaign(self, rm_name: str = "Relationship Manager", rm_id: str = "RM001") -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate the multi-step reasoning and tool call flow for loan campaign."""
+        logger.info("[MockAgent] Starting Personal Loan Campaign simulation. RM='%s' (ID: %s)", rm_name, rm_id)
         # 1. search_customers
         yield {
             "agent": {
@@ -241,7 +266,10 @@ class MockAgent:
         except Exception:
             customers = []
 
+        logger.info("[MockAgent] Personal Loan Campaign: found %d high-income customers matching criteria", len(customers))
+
         if not customers:
+            logger.warning("[MockAgent] Personal Loan Campaign: no candidates found. Terminating simulation.")
             yield {
                 "agent": {
                     "messages": [
@@ -312,6 +340,7 @@ class MockAgent:
                 pass
 
         # Final Summary
+        logger.info("[MockAgent] Personal Loan Campaign: simulation complete. Generated outreach for %d candidates", len(top_candidates))
         summary_md = "### 🎯 Personal Loan Target Campaign Summary\n\n"
         summary_md += "I have successfully searched, scored, and generated personalized outreach for the top high-potential personal loan candidates:\n\n"
         summary_md += "| ID | Name | Annual Income | Credit Score | Conversion Score | Status |\n"
@@ -338,6 +367,7 @@ class MockAgent:
 
     async def _stream_customer_analysis(self, customer_id: int, rm_name: str = "Relationship Manager", rm_id: str = "RM001") -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate deep-dive analysis for a single customer ID."""
+        logger.info("[MockAgent] Starting Customer Analysis simulation for customer ID %d. RM='%s' (ID: %s)", customer_id, rm_name, rm_id)
         # 1. get_customer_profile
         yield {
             "agent": {
@@ -360,7 +390,9 @@ class MockAgent:
         try:
             profile = json.loads(profile_res)
             cust_name = profile.get("name", f"Customer #{customer_id}")
+            logger.info("[MockAgent] Customer Analysis: profile retrieved for customer name '%s'", cust_name)
         except Exception:
+            logger.error("[MockAgent] Customer Analysis: failed to parse profile for ID %d", customer_id)
             yield {
                 "agent": {
                     "messages": [
@@ -474,6 +506,7 @@ class MockAgent:
         else:
             summary_md += "Maintain regular engagement. Customer currently qualifies for savings and basic relationship maintenance."
 
+        logger.info("[MockAgent] Customer Analysis simulation complete for customer ID %d (name: '%s')", customer_id, cust_name)
         yield {
             "agent": {
                 "messages": [
@@ -486,6 +519,7 @@ class MockAgent:
         """Simulate credit card campaign for Gold tier in Mumbai."""
         tier_val = tier or "Gold"
         city_val = city or "Mumbai"
+        logger.info("[MockAgent] Starting Credit Card Campaign simulation (tier=%s, city=%s). RM='%s' (ID: %s)", tier_val, city_val, rm_name, rm_id)
 
         yield {
             "agent": {
@@ -510,8 +544,11 @@ class MockAgent:
         except Exception:
             customers = []
 
+        logger.info("[MockAgent] Credit Card Campaign: initial search found %d customers", len(customers))
+
         if not customers:
             # Fallback if specific search yielded nothing
+            logger.info("[MockAgent] Credit Card Campaign: no initial candidates found. Running fallback search for tier %s only.", tier_val)
             yield {
                 "agent": {
                     "messages": [
@@ -523,6 +560,7 @@ class MockAgent:
             search_res = await self._run_tool("search_customers", {"tier": tier_val, "limit": 3})
             try:
                 customers = json.loads(search_res)
+                logger.info("[MockAgent] Credit Card Campaign: fallback search found %d customers", len(customers))
             except Exception:
                 customers = []
 
@@ -604,6 +642,7 @@ class MockAgent:
 
         summary_md += f"\n*Signed off by: {rm_name} ({rm_id})*"
 
+        logger.info("[MockAgent] Credit Card Upgrade Campaign simulation complete. Generated outreach for %d candidates", len(top_candidates))
         yield {
             "agent": {
                 "messages": [

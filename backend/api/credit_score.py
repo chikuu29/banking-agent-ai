@@ -3,6 +3,7 @@
 GET /api/customers/{id}/credit-score — Get credit score with factor breakdown
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
@@ -10,6 +11,8 @@ from datetime import date
 from data.database import get_db
 from data.models import Customer, Transaction
 from api.schemas import CreditScoreResponse, CreditFactor
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/customers", tags=["Credit Score"])
 
@@ -151,11 +154,16 @@ def get_credit_score(customer_id: int, db: Session = Depends(get_db)):
     Returns the credit score, rating category, and individual factors
     that contribute to the score (payment history, utilization, etc.).
     """
+    logger.info("API GET /api/v1/customers/%d/credit-score: fetching credit details", customer_id)
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
+        logger.warning("API GET /api/v1/customers/%d/credit-score: customer not found", customer_id)
         raise HTTPException(status_code=404, detail=f"Customer {customer_id} not found")
 
     factors = _analyze_credit_factors(customer, db)
+    rating = _score_to_rating(customer.credit_score)
+    logger.info("API GET /api/v1/customers/%d/credit-score: score=%d (%s), computed %d factors",
+                customer_id, customer.credit_score, rating, len(factors))
 
     return CreditScoreResponse(
         customer_id=customer.id,

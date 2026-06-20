@@ -3,6 +3,7 @@
 GET /api/customers/{id}/transactions — Fetch transaction history with summary
 """
 
+import logging
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
@@ -12,6 +13,8 @@ from collections import defaultdict
 from data.database import get_db
 from data.models import Customer, Transaction
 from api.schemas import TransactionRecord, TransactionSummary, TransactionResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/customers", tags=["Transactions"])
 
@@ -29,8 +32,11 @@ def get_transactions(
     Returns individual transactions plus aggregated summary statistics
     including income, expenses, spending categories, and EMI burden analysis.
     """
+    logger.info("API GET /api/v1/customers/%d/transactions: months=%d, category=%s, min_amount=%s",
+                customer_id, months, category, min_amount)
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
+        logger.warning("API GET /api/v1/customers/%d/transactions: customer not found", customer_id)
         raise HTTPException(status_code=404, detail=f"Customer {customer_id} not found")
 
     # Build query
@@ -80,6 +86,9 @@ def get_transactions(
         total_emi_payments=round(total_emi, 2),
         emi_to_income_ratio=round(total_emi / total_credit, 4) if total_credit > 0 else 0,
     )
+
+    logger.info("API GET /api/v1/customers/%d/transactions: found %d transactions, avg_balance=₹%s, total_credit=₹%s, total_debit=₹%s",
+                customer_id, len(transactions), f"{avg_balance:,.2f}", f"{total_credit:,.2f}", f"{total_debit:,.2f}")
 
     return TransactionResponse(
         customer_id=customer_id,

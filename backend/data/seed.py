@@ -4,6 +4,9 @@ Generates realistic Indian banking customer profiles with transaction histories,
 product ownership, and interaction records.
 """
 
+import logging
+
+
 import random
 from datetime import date, timedelta
 from faker import Faker
@@ -12,6 +15,8 @@ import hashlib
 from data.models import Customer, Transaction, Product, Interaction, Base, User
 from data.database import engine, SessionLocal
 from config import NUM_CUSTOMERS, RANDOM_SEED
+
+logger = logging.getLogger(__name__)
 
 fake = Faker("en_IN")
 Faker.seed(RANDOM_SEED)
@@ -346,7 +351,7 @@ def _generate_interactions(customer_id: int, num: int = None) -> list[Interactio
 
 def seed_database():
     """Generate and insert all synthetic data."""
-    print("[*] Seeding Banking CRM database...")
+    logger.info("Seeding Banking CRM database...")
 
     # Create tables
     Base.metadata.drop_all(bind=engine)
@@ -356,13 +361,13 @@ def seed_database():
 
     try:
         # --- Seed Products ---
-        print("  [+] Creating product catalog...")
+        logger.info("Creating product catalog...")
         for p in PRODUCT_CATALOG:
             session.add(Product(**p))
         session.flush()
 
         # --- Seed Users ---
-        print("  [+] Creating Relationship Manager users...")
+        logger.info("Creating Relationship Manager users...")
         users = [
             User(
                 username="suryanarayan",
@@ -393,7 +398,7 @@ def seed_database():
         session.flush()
 
         # --- Seed Customers ---
-        print(f"  [+] Creating {NUM_CUSTOMERS} customers...")
+        logger.info("Creating %d customers...", NUM_CUSTOMERS)
         for i in range(1, NUM_CUSTOMERS + 1):
             city, state = random.choice(INDIAN_CITIES)
             gender = random.choice(["Male", "Female"])
@@ -459,7 +464,7 @@ def seed_database():
             session.add_all(interactions)
 
             if i % 50 == 0:
-                print(f"    > {i}/{NUM_CUSTOMERS} customers created")
+                logger.info("  %d/%d customers created", i, NUM_CUSTOMERS)
                 session.flush()
 
         session.commit()
@@ -471,16 +476,14 @@ def seed_database():
         product_count = session.query(Product).count()
         user_count = session.query(User).count()
 
-        print(f"\n[OK] Database seeded successfully!")
-        print(f"   {user_count} users")
-        print(f"   {customer_count} customers")
-        print(f"   {txn_count} transactions")
-        print(f"   {interaction_count} interactions")
-        print(f"   {product_count} products")
+        logger.info(
+            "Database seeded successfully! %d users, %d customers, %d transactions, %d interactions, %d products",
+            user_count, customer_count, txn_count, interaction_count, product_count,
+        )
 
     except Exception as e:
         session.rollback()
-        print(f"[ERROR] Error seeding database: {e}")
+        logger.error("Error seeding database: %s", e, exc_info=True)
         raise
     finally:
         session.close()

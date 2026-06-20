@@ -4,6 +4,7 @@ GET /api/customers          — List/filter customers
 GET /api/customers/{id}     — Get full customer profile
 """
 
+import logging
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -12,6 +13,8 @@ from datetime import date
 from data.database import get_db
 from data.models import Customer, Interaction
 from api.schemas import CustomerSummary, CustomerProfile, InteractionRecord, CustomerCreate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/customers", tags=["Customers"])
 
@@ -33,6 +36,8 @@ def list_customers(
     Returns a list of customer summaries matching the specified filters.
     Useful for identifying customer segments for targeted campaigns.
     """
+    logger.info("API GET /api/v1/customers: min_income=%s, min_credit_score=%s, tier=%s, city=%s, limit=%d",
+                min_income, min_credit_score, tier, city, limit)
     query = db.query(Customer)
 
     if min_income is not None:
@@ -47,6 +52,7 @@ def list_customers(
         query = query.filter(Customer.city.ilike(f"%{city}%"))
 
     customers = query.order_by(desc(Customer.annual_income)).limit(limit).all()
+    logger.info("API GET /api/v1/customers: found %d matches (before post-filtering)", len(customers))
 
     # Post-filter by product ownership (JSON field)
     if has_product:
@@ -54,6 +60,7 @@ def list_customers(
     if without_product:
         customers = [c for c in customers if without_product not in (c.existing_products or [])]
 
+    logger.info("API GET /api/v1/customers: returning %d results after post-filtering", len(customers))
     return customers
 
 
@@ -64,8 +71,10 @@ def get_customer_profile(customer_id: int, db: Session = Depends(get_db)):
     Includes demographics, account information, existing products,
     and recent interaction history.
     """
+    logger.info("API GET /api/v1/customers/%d: fetching profile", customer_id)
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
+        logger.warning("API GET /api/v1/customers/%d: customer not found", customer_id)
         raise HTTPException(status_code=404, detail=f"Customer {customer_id} not found")
 
     # Fetch recent interactions
@@ -81,6 +90,8 @@ def get_customer_profile(customer_id: int, db: Session = Depends(get_db)):
     tenure_days = (date.today() - customer.account_open_date).days
     tenure_years = round(tenure_days / 365.25, 1)
 
+    logger.info("API GET /api/v1/customers/%d: found profile for '%s' (tier=%s, tenure=%.1f years)",
+                customer_id, customer.name, customer.relationship_tier, tenure_years)
     return CustomerProfile(
         id=customer.id,
         name=customer.name,
@@ -116,6 +127,7 @@ def get_customer_profile(customer_id: int, db: Session = Depends(get_db)):
 def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
     """Create a new banking customer profile."""
     import datetime
+    logger.info("API POST /api/v1/customers: creating customer named '%s'", payload.name)
     
     new_cust = Customer(
         name=payload.name,
@@ -142,7 +154,9 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
     try:
         db.commit()
         db.refresh(new_cust)
+        logger.info("API POST /api/v1/customers: successfully created customer ID %d", new_cust.id)
     except Exception as e:
+        logger.error("API POST /api/v1/customers: failed to create customer: %s", e)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
         

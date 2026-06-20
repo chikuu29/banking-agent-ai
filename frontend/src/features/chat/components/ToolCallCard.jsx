@@ -382,12 +382,13 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   const renderProductEligibility = (eligibility) => {
-    if (!Array.isArray(eligibility) || eligibility.length === 0) {
+    const products = Array.isArray(eligibility) ? eligibility : (eligibility?.eligible_products || [])
+    if (products.length === 0) {
       return <div className="text-center p-4 font-mono text-[12px] text-text-muted">No product eligibility details found.</div>
     }
     return (
       <div className="grid grid-cols-2 gap-4 md:grid-cols-1">
-        {eligibility.map((p, idx) => {
+        {products.map((p, idx) => {
           const isEligible = p.eligible
           const fitScore = p.fit_score || 0
           return (
@@ -600,6 +601,14 @@ export default function ToolCallCard({ toolCall }) {
             <div className="font-mono text-[11px] font-bold uppercase text-text-muted mb-1">PARAMETERS</div>
             <div className="font-mono text-[12.5px] text-text-primary bg-white p-2 px-4 border-3 border-black rounded-sm max-h-[200px] overflow-y-auto whitespace-pre-wrap">{formatArgs(args)}</div>
           </div>
+
+          {/* Status/Thinking Message when calling */}
+          {status === 'calling' && (
+            <div className="flex items-center gap-2.5 font-mono text-[12.5px] text-black bg-bg-secondary p-3 px-4 border-3 border-black border-dashed rounded-sm my-2 shadow-[2px_2px_0px_#000]">
+              <span className="inline-block animate-spin mr-1">⏳</span>
+              <span className="font-extrabold uppercase tracking-wide">Executing API request to {name}...</span>
+            </div>
+          )}
 
           {/* Result */}
           {result && (

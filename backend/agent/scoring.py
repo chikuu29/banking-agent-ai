@@ -346,15 +346,34 @@ def score_customer(customer_id: int, product_type: str) -> dict:
     Returns:
         Dictionary with score, label, confidence, factors, and summary
     """
+    import logging
+    import time
+
+    logger = logging.getLogger(__name__)
+    logger.info("┌─── Scoring Engine ────────────────────────────")
+    logger.info("│ Customer ID  : %d", customer_id)
+    logger.info("│ Product Type : %s", product_type)
+
+    start = time.perf_counter()
+
     with get_db_session() as db:
         customer = db.query(Customer).filter(Customer.id == customer_id).first()
         if not customer:
+            logger.warning("│ ✗ Customer %d not found", customer_id)
+            logger.info("└────────────────────────────────────────────────")
             return {"error": f"Customer {customer_id} not found"}
+
+        logger.info("│ Customer     : %s (tier=%s, income=₹%s, credit=%d)",
+                     customer.name, customer.relationship_tier,
+                     f"{customer.annual_income:,.0f}", customer.credit_score)
 
         # Get weights for this product type
         weights = PRODUCT_WEIGHTS.get(product_type, DEFAULT_WEIGHTS)
+        using_default = product_type not in PRODUCT_WEIGHTS
+        logger.info("│ Weights      : %s%s", product_type, " (DEFAULT)" if using_default else "")
 
         # Calculate each factor
+        logger.info("│ ── Factor Breakdown ──")
         factors_raw = [
             ("income_adequacy", _score_income_adequacy(customer, product_type)),
             ("credit_score", _score_credit(customer)),
@@ -372,7 +391,10 @@ def score_customer(customer_id: int, product_type: str) -> dict:
         for key, factor in factors_raw:
             w = weights.get(key, 0.1)
             factor.weight = w
-            total_score += factor.score * w
+            weighted = factor.score * w
+            total_score += weighted
+            logger.info("│   %-22s score=%3d × weight=%.0f%% → %.1f  (%s)",
+                         factor.name, round(factor.score), w * 100, weighted, factor.detail[:50])
             factors_output.append({
                 "name": factor.name,
                 "score": round(factor.score),
@@ -391,6 +413,8 @@ def score_customer(customer_id: int, product_type: str) -> dict:
         else:
             label, confidence = "Low", "Medium"
 
+        elapsed = (time.perf_counter() - start) * 1000
+
         # Generate summary
         top_factors = sorted(factors_output, key=lambda f: f["weighted_contribution"], reverse=True)[:3]
         top_names = [f["name"] for f in top_factors]
@@ -399,6 +423,13 @@ def score_customer(customer_id: int, product_type: str) -> dict:
             f"for {product_type.replace('_', ' ')}. "
             f"Key drivers: {', '.join(top_names)}."
         )
+
+        logger.info("│ ── Result ──")
+        logger.info("│ Final Score  : %d/100", final_score)
+        logger.info("│ Label        : %s (confidence: %s)", label, confidence)
+        logger.info("│ Top Drivers  : %s", ", ".join(top_names))
+        logger.info("│ Time         : %.1fms", elapsed)
+        logger.info("└────────────────────────────────────────────────")
 
         return {
             "customer_id": customer_id,

@@ -4,9 +4,11 @@ Serves the mock banking APIs and the WebSocket chat endpoint
 for the LangGraph agent.
 """
 
+import logging
+
+
 import json
 import uuid
-import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -15,10 +17,13 @@ from pydantic import BaseModel
 from typing import Optional, List
 import hashlib
 
+from logging_config import setup_logging
 from config import API_HOST, API_PORT
 from data.database import init_db, engine
 from data.models import Base, Customer
 from data.seed import seed_database
+
+logger = logging.getLogger(__name__)
 
 # Import API routers
 from api.customers import router as customers_router
@@ -35,6 +40,8 @@ from agent.graph import create_agent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize database and seed data on startup."""
+    setup_logging()
+
     # Check if DB needs seeding
     init_db()
     from sqlalchemy.orm import Session
@@ -44,14 +51,14 @@ async def lifespan(app: FastAPI):
     db.close()
 
     if count == 0:
-        print("[*] No data found -- seeding database...")
+        logger.info("No data found — seeding database...")
         seed_database()
     else:
-        print(f"[OK] Database ready with {count} customers")
+        logger.info("Database ready with %d customers", count)
 
     # Create agent
     app.state.agent = create_agent()
-    print("[OK] Agent initialized and ready")
+    logger.info("Agent initialized and ready")
 
     yield
 
@@ -448,7 +455,7 @@ def get_chat_history(thread_id: str):
         state = agent.get_state(config)
         messages = state.values.get("messages", [])
     except Exception as e:
-        print(f"[ERROR] Failed to retrieve agent state for history: {e}")
+        logger.error("Failed to retrieve agent state for thread %s: %s", thread_id, e)
         messages = []
         
     return {
@@ -494,8 +501,17 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
             thread_id = payload.get("thread_id", str(uuid.uuid4()))
 
             if not user_message.strip():
+                logger.warning("💬 [WS] Received empty message from user_id=%s, thread_id=%s", user_id, thread_id)
                 await websocket.send_json({"type": "error", "content": "Empty message"})
                 continue
+
+            logger.info("================================================================================")
+            logger.info("💬 [WS] WebSocket Message Received")
+            logger.info("   • User ID   : %s", user_id or "Anonymous")
+            logger.info("   • RM Name   : %s (ID: %s)", rm_name, rm_id)
+            logger.info("   • Thread ID : %s", thread_id)
+            logger.info("   • Message   : '%s'", user_message[:100] + ("..." if len(user_message) > 100 else ""))
+            logger.info("================================================================================")
 
             # Update chat thread title dynamically if it's new
             db = SessionLocal()
@@ -505,8 +521,9 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
                     # Truncate first message for the chat list title
                     thread.title = user_message[:35] + ("..." if len(user_message) > 35 else "")
                     db.commit()
+                    logger.info("📝 [WS] Updated thread title: '%s'", thread.title)
             except Exception as e:
-                print(f"[ERROR] Failed to update chat title: {e}")
+                logger.error("Failed to update chat title for thread %s: %s", thread_id, e)
                 db.rollback()
             finally:
                 db.close()
@@ -534,6 +551,8 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
                         f"Whenever you generate outreach messages or sign off, always do so on behalf of {rm_name}."
                     )
                 )
+                logger.info("🚀 [WS] Invoking Agent graph. Config context: RM='%s' (ID: %s)", rm_name, rm_id)
+                logger.debug("🚀 [WS] System Prompt Content:\n%s", system_msg.content)
 
                 # Stream agent events asynchronously
                 async for event in agent.astream(
@@ -542,12 +561,15 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
                     stream_mode="updates",
                 ):
                     for node_name, node_output in event.items():
+                        logger.info("🤖 [WS] Node '%s' execution update", node_name)
                         if node_name == "tools":
                             # Tool execution results
                             messages = node_output.get("messages", [])
                             for msg in messages:
                                 tool_name = msg.name if hasattr(msg, "name") else "unknown"
                                 tool_result = msg.content if hasattr(msg, "content") else str(msg)
+                                logger.info("   🔧 [WS] Tool '%s' execution finished (response len: %d bytes)",
+                                            tool_name, len(tool_result))
                                 await websocket.send_json({
                                     "type": "tool_result",
                                     "name": tool_name,
@@ -574,10 +596,12 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
                                 if hasattr(msg, "tool_calls") and msg.tool_calls:
                                     for tc in msg.tool_calls:
                                         t_name = tc.get("name", "unknown")
+                                        t_args = tc.get("args", {})
+                                        logger.info("   🧠 [WS] Agent requested tool call: name='%s', args=%s", t_name, t_args)
                                         await websocket.send_json({
                                             "type": "tool_call",
                                             "name": t_name,
-                                            "args": tc.get("args", {}),
+                                            "args": t_args,
                                         })
                                         execution_flow.append({
                                             "type": "agent_call",
@@ -603,6 +627,8 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
                                     else:
                                         content_str = str(msg.content)
 
+                                    logger.info("   📝 [WS] Agent output message chunk received (%d chars): '%s'",
+                                                len(content_str), content_str[:100] + ("..." if len(content_str) > 100 else ""))
                                     await websocket.send_json({
                                         "type": "agent_message",
                                         "content": content_str,
@@ -614,6 +640,14 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
                     input_tokens = 140 + tool_calls_count * 120 + len(user_message) // 6
                     output_tokens = 60 + tool_calls_count * 40
                     total_tokens = input_tokens + output_tokens
+                    logger.info("ℹ️ [WS] Simulated token usage mapping: input=%d, output=%d, total=%d",
+                                input_tokens, output_tokens, total_tokens)
+
+                logger.info("✅ [WS] Agent stream finished for thread_id=%s", thread_id)
+                logger.info("   • Input Tokens      : %d", input_tokens)
+                logger.info("   • Output Tokens     : %d", output_tokens)
+                logger.info("   • Total Tokens      : %d", total_tokens)
+                logger.info("   • Execution Steps   : %s", [f"{step['type']}:{step.get('name')}" for step in execution_flow])
 
                 # Persist the execution log
                 db = SessionLocal()
@@ -629,8 +663,9 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
                     )
                     db.add(log_entry)
                     db.commit()
+                    logger.info("💾 [WS] Persisted ExecutionLog to database")
                 except Exception as e:
-                    print(f"[ERROR] Failed to save execution log: {e}")
+                    logger.error("Failed to save execution log: %s", e)
                     db.rollback()
                 finally:
                     db.close()
@@ -640,16 +675,14 @@ async def chat_websocket(websocket: WebSocket, user_id: Optional[int] = None):
 
             except Exception as e:
                 error_msg = f"Agent error: {str(e)}"
-                print(f"[ERROR] {error_msg}")
-                traceback.print_exc()
+                logger.exception("Agent processing error")
                 await websocket.send_json({"type": "error", "content": error_msg})
                 await websocket.send_json({"type": "done", "thread_id": thread_id})
 
     except WebSocketDisconnect:
-        print("[*] Client disconnected")
+        logger.info("Client disconnected")
     except Exception as e:
-        print(f"[ERROR] WebSocket error: {e}")
-        traceback.print_exc()
+        logger.exception("WebSocket error")
 
 
 # --- Run ---

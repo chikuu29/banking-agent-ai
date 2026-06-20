@@ -4,12 +4,15 @@ GET /api/products                             — List all banking products
 GET /api/customers/{id}/product-eligibility   — Check product eligibility for a customer
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from data.database import get_db
 from data.models import Customer, Product
 from api.schemas import ProductInfo, EligibilityResult, ProductEligibilityResponse, ProductCreate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Products"])
 
@@ -20,7 +23,9 @@ def list_products(db: Session = Depends(get_db)):
     
     Returns complete product catalog with eligibility criteria and features.
     """
+    logger.info("API GET /api/v1/products: listing all products")
     products = db.query(Product).all()
+    logger.info("API GET /api/v1/products: found %d products in catalog", len(products))
     return products
 
 
@@ -34,8 +39,10 @@ def check_product_eligibility(customer_id: int, db: Session = Depends(get_db)):
     Evaluates each product against the customer's profile (income, credit score)
     and returns eligibility status with fit score and reasons.
     """
+    logger.info("API GET /api/v1/customers/%d/product-eligibility: checking eligibility", customer_id)
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
+        logger.warning("API GET /api/v1/customers/%d/product-eligibility: customer not found", customer_id)
         raise HTTPException(status_code=404, detail=f"Customer {customer_id} not found")
 
     products = db.query(Product).all()
@@ -95,6 +102,9 @@ def check_product_eligibility(customer_id: int, db: Session = Depends(get_db)):
 
     # Sort by fit_score descending, eligible first
     results.sort(key=lambda r: (r.eligible, r.fit_score), reverse=True)
+    eligible_count = sum(1 for r in results if r.eligible)
+    logger.info("API GET /api/v1/customers/%d/product-eligibility: checked %d products, customer eligible for %d",
+                customer_id, len(results), eligible_count)
 
     return ProductEligibilityResponse(
         customer_id=customer.id,
@@ -106,6 +116,7 @@ def check_product_eligibility(customer_id: int, db: Session = Depends(get_db)):
 @router.post("/api/v1/products", response_model=ProductInfo)
 def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
     """Create a new banking product catalog offering."""
+    logger.info("API POST /api/v1/products: creating product '%s' (%s)", payload.name, payload.type)
     new_prod = Product(
         name=payload.name,
         type=payload.type,
@@ -122,7 +133,9 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
     try:
         db.commit()
         db.refresh(new_prod)
+        logger.info("API POST /api/v1/products: successfully created product ID %d", new_prod.id)
     except Exception as e:
+        logger.error("API POST /api/v1/products: failed to create product: %s", e)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
         

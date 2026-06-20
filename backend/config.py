@@ -6,9 +6,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# --- Logging Configuration ---
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
 # --- LLM Configuration ---
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # "gemini" or "deepseek"
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.0-flash")  # or "deepseek-chat", "deepseek-reasoner"
 
 # --- API Configuration ---
 API_HOST = os.getenv("API_HOST", "127.0.0.1")
