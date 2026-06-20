@@ -1,198 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useChat } from './hooks/useChat.js'
-import Sidebar from './components/Sidebar.jsx'
-import ChatInterface from './components/ChatInterface.jsx'
-import CoreMetrics from './components/CoreMetrics.jsx'
-
-/**
- * AuthScreen - Handles Login and Signup card interfaces.
- */
-function AuthScreen({ onLoginSuccess }) {
-  const [isLogin, setIsLogin] = useState(true)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-  const [rmId, setRmId] = useState('RM001')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (!username.trim() || !password.trim()) {
-      setError('Please fill in username and password.')
-      return
-    }
-    setError('')
-    setLoading(true)
-
-    const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/signup'
-    const body = isLogin 
-      ? { username, password }
-      : { username, password, full_name: fullName, email, assigned_rm_id: rmId }
-
-    fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-      .then(res => {
-        if (!res.ok) {
-          return res.json().then(d => { throw new Error(d.detail || 'Authentication failed') })
-        }
-        return res.json()
-      })
-      .then(user => {
-        localStorage.setItem('user', JSON.stringify(user))
-        onLoginSuccess(user)
-      })
-      .catch(err => {
-        setError(err.message)
-      })
-      .finally(() => {
-        setLoading(false)
-      })
-  }
-
-  return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div style={{
-          background: 'var(--accent-red)',
-          color: '#000000',
-          textAlign: 'center',
-          fontWeight: '900',
-          fontSize: '0.75rem',
-          padding: '6px 12px',
-          border: 'var(--border-solid)',
-          marginBottom: 'var(--space-md)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em'
-        }}>
-          ☢ SECURE AGENT LOGIN REQUIRED ☢
-        </div>
-        <div className="auth-logo-icon">🏦</div>
-        <h2>{isLogin ? 'CRM CORE LOGIN' : 'CREATE AGENT ACCOUNT'}</h2>
-        <p className="auth-subtitle">
-          {isLogin ? 'Access the Relationship Manager command center' : 'Create a new RM control account'}
-        </p>
-
-        {error && (
-          <div className="auth-error">
-            <span>⚠️ ERROR_LOG:</span> {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label>👤 AGENT_ID / USERNAME</label>
-            <input 
-              type="text" 
-              value={username} 
-              onChange={e => setUsername(e.target.value)} 
-              placeholder="e.g. suryanarayan, rm001"
-              required 
-            />
-          </div>
-
-          <div className="form-group">
-            <label>🔑 KEYPASS / PASSWORD</label>
-            <div className="password-input-wrapper" style={{ position: 'relative', display: 'flex', width: '100%' }}>
-              <input 
-                type={showPassword ? 'text' : 'password'} 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
-                placeholder="••••••••"
-                required 
-                style={{ width: '100%', paddingRight: '40px' }}
-              />
-              <button
-                type="button"
-                className="toggle-password-btn"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '1.1rem',
-                  padding: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                {showPassword ? '👁️' : '🙈'}
-              </button>
-            </div>
-          </div>
-
-          {!isLogin && (
-            <>
-              <div className="form-group">
-                <label>📛 FULL NAME</label>
-                <input 
-                  type="text" 
-                  value={fullName} 
-                  onChange={e => setFullName(e.target.value)} 
-                  placeholder="e.g. Suryanarayan Biswal"
-                  required 
-                />
-              </div>
-
-              <div className="form-group">
-                <label>📧 EMAIL ADDRESS</label>
-                <input 
-                  type="email" 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  placeholder="e.g. cchiku1999@gmail.com"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>🎖 ASSIGNED RM TIER</label>
-                <select value={rmId} onChange={e => setRmId(e.target.value)}>
-                  <option value="RM001">RM001 (Main segment)</option>
-                  <option value="RM002">RM002 (Regional)</option>
-                  <option value="RM003">RM003 (Premium)</option>
-                </select>
-              </div>
-            </>
-          )}
-
-          <button type="submit" className="auth-submit-btn" disabled={loading}>
-            {loading ? 'INITIALIZING ACCESS...' : (isLogin ? 'DECRYPT & LOG IN' : 'REGISTER NEW AGENT')}
-          </button>
-        </form>
-
-        <div className="auth-toggle">
-          {isLogin ? "NEW RELATIONSHIP MANAGER? " : "ALREADY REGISTERED? "}
-          <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="toggle-btn">
-            {isLogin ? 'CREATE PROFILE' : 'LOG IN DIRECTLY'}
-          </button>
-        </div>
-
-        {isLogin && (
-          <div className="demo-credentials">
-            <p style={{ textTransform: 'uppercase', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
-              <span>🔑 DEMO_CREDENTIALS</span>
-              <span style={{ color: 'var(--accent-pink)' }}>[TEST_ACTIVE]</span>
-            </p>
-            <div>USER: <code>suryanarayan</code> | PASS: <code>password</code></div>
-            <div style={{ marginTop: '2px' }}>USER: <code>rm001</code> | PASS: <code>password</code></div>
-            <div style={{ marginTop: '2px' }}>USER: <code>cchiku1999@gmail.com</code> | PASS: <code>Demo@123</code></div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+import { useChat } from './features/chat/hooks/useChat.js'
+import Sidebar from './components/layout/Sidebar.jsx'
+import AppLogo from './components/layout/AppLogo.jsx'
+import ChatInterface from './features/chat/components/ChatInterface.jsx'
+import CustomerDirectory from './features/dashboard/components/CustomerDirectory.jsx'
+import AgentTools from './features/dashboard/components/AgentTools.jsx'
+import ProductCatalog from './features/dashboard/components/ProductCatalog.jsx'
+import ApiEndpoints from './features/dashboard/components/ApiEndpoints.jsx'
+import Login from './features/auth/components/Login.jsx'
+import Signup from './features/auth/components/Signup.jsx'
 
 /**
  * Root application component.
@@ -203,6 +19,8 @@ export default function App() {
     const saved = localStorage.getItem('user')
     return saved ? JSON.parse(saved) : null
   })
+
+
 
   const { 
     messages, 
@@ -287,20 +105,28 @@ export default function App() {
     setCurrentPath(path)
   }
 
-  // Redirect unrecognized paths on load
+  // Redirect and guard routing based on auth state
   useEffect(() => {
-    const validPaths = [
-      '/v1/agent/ask',
-      '/v1/datasource/customer',
-      '/v1/datasource/aitools',
-      '/v1/datasource/products',
-      '/v1/datasource/apis'
-    ]
-    if (!validPaths.includes(window.location.pathname)) {
-      window.history.replaceState({}, '', '/v1/agent/ask')
-      setCurrentPath('/v1/agent/ask')
+    const path = window.location.pathname
+    if (!user) {
+      if (path !== '/v1/auth/login' && path !== '/v1/auth/register') {
+        window.history.replaceState({}, '', '/v1/auth/login')
+        setCurrentPath('/v1/auth/login')
+      }
+    } else {
+      const validPaths = [
+        '/v1/agent/ask',
+        '/v1/datasource/customer',
+        '/v1/datasource/aitools',
+        '/v1/datasource/products',
+        '/v1/datasource/apis'
+      ]
+      if (path === '/v1/auth/login' || path === '/v1/auth/register' || !validPaths.includes(path)) {
+        window.history.replaceState({}, '', '/v1/agent/ask')
+        setCurrentPath('/v1/agent/ask')
+      }
     }
-  }, [])
+  }, [user, currentPath])
 
   // Map path to view string
   let currentView = 'chat'
@@ -320,13 +146,17 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthScreen onLoginSuccess={setUser} />
+    if (currentPath === '/v1/auth/register') {
+      return <Signup onLoginSuccess={setUser} onToggleMode={() => navigate('/v1/auth/login')} />
+    } else {
+      return <Login onLoginSuccess={setUser} onToggleMode={() => navigate('/v1/auth/register')} />
+    }
   }
 
   return (
-    <div className={`app-layout ${sidebarOpen ? 'sidebar-open' : ''}`}>
+    <div className={`flex h-dvh w-full relative bg-[radial-gradient(var(--color-text-muted)_1px,transparent_1px)] bg-[size:24px_24px] overflow-hidden ${sidebarOpen ? 'sidebar-open' : ''}`}>
       {sidebarOpen && (
-        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[999]" onClick={() => setSidebarOpen(false)} />
       )}
       <Sidebar 
         user={user}
@@ -342,104 +172,119 @@ export default function App() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      
-      <div className="main-content-pane">
+      <div className="flex-1 flex flex-col h-dvh overflow-hidden">
         {/* Unified Top Navbar / Dataview & Controls */}
-        <div className="dataview-navbar">
-          <div className="nav-tabs-wrapper">
+        <div className="bg-bg-secondary border-b-3 border-black py-2.5 px-4 flex justify-between items-center z-[15] gap-4 w-full relative max-md:flex-nowrap max-md:py-2 max-md:px-3">
+          {/* Centered Mobile Logo */}
+          <div className="hidden max-md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <AppLogo hideTextOnMobile={true} />
+          </div>
+
+          {/* Left side: toggle + scrollable tabs */}
+          <div className="flex gap-2 items-center overflow-hidden flex-1 max-md:gap-1.5">
             <button 
               id="sidebar-toggle-btn"
-              className="sidebar-toggle-btn"
               onClick={() => setSidebarOpen(true)}
               title="OPEN SIDEBAR MENU"
+              className="inline-flex md:hidden items-center justify-center bg-bg-secondary border-3 border-black text-lg font-bold cursor-pointer py-1.5 px-3 shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 mr-1 text-text-primary hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-accent-cyan active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] flex-shrink-0 max-md:py-1 max-md:px-2.5"
             >
               ☰
             </button>
-            <button 
-              className={`nav-tab ${currentView === 'chat' ? 'active' : ''}`} 
-              onClick={() => navigate('/v1/agent/ask')}
-            >
-              💬 CHAT CONSOLE
-            </button>
-            <button 
-              className={`nav-tab ${currentView === 'customers' ? 'active' : ''}`} 
-              onClick={() => navigate('/v1/datasource/customer')}
-            >
-              👤 CUSTOMER DIRECTORY
-            </button>
-            <button 
-              className={`nav-tab ${currentView === 'aitools' ? 'active' : ''}`} 
-              onClick={() => navigate('/v1/datasource/aitools')}
-            >
-              🤖 AI AGENT TOOLS
-            </button>
-            <button 
-              className={`nav-tab ${currentView === 'products' ? 'active' : ''}`} 
-              onClick={() => navigate('/v1/datasource/products')}
-            >
-              📦 PRODUCT CATALOG
-            </button>
-            <button 
-              className={`nav-tab ${currentView === 'apis' ? 'active' : ''}`} 
-              onClick={() => navigate('/v1/datasource/apis')}
-            >
-              📡 CORE REST APIs
-            </button>
+
+
+            {/* Scrollable Tabs Wrapper */}
+            <div className="flex gap-2 items-center overflow-x-auto scrollbar-none py-1 flex-1 max-md:hidden max-md:gap-1.5">
+              <button 
+                className={`font-sans font-bold uppercase text-[12px] py-1.5 px-3.5 cursor-pointer shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 whitespace-nowrap hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-bg-primary active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] border-3 border-black text-text-primary flex-shrink-0 ${
+                  currentView === 'chat' ? 'bg-accent-violet text-black shadow-[3px_3px_0px_#000000]' : 'bg-bg-card'
+                } max-md:py-1 max-md:px-2 max-md:text-[11px] max-md:shadow-[1.5px_1.5px_0px_#000]`}
+                onClick={() => navigate('/v1/agent/ask')}
+              >
+                💬 CHAT CONSOLE
+              </button>
+              <button 
+                className={`font-sans font-bold uppercase text-[12px] py-1.5 px-3.5 cursor-pointer shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 whitespace-nowrap hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-bg-primary active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] border-3 border-black text-text-primary flex-shrink-0 ${
+                  currentView === 'customers' ? 'bg-accent-yellow text-black shadow-[3px_3px_0px_#000000]' : 'bg-bg-card'
+                } max-md:py-1 max-md:px-2 max-md:text-[11px] max-md:shadow-[1.5px_1.5px_0px_#000]`}
+                onClick={() => navigate('/v1/datasource/customer')}
+              >
+                👤 CUSTOMER DIRECTORY
+              </button>
+              <button 
+                className={`font-sans font-bold uppercase text-[12px] py-1.5 px-3.5 cursor-pointer shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 whitespace-nowrap hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-bg-primary active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] border-3 border-black text-text-primary flex-shrink-0 ${
+                  currentView === 'aitools' ? 'bg-accent-lime text-black shadow-[3px_3px_0px_#000000]' : 'bg-bg-card'
+                } max-md:py-1 max-md:px-2 max-md:text-[11px] max-md:shadow-[1.5px_1.5px_0px_#000]`}
+                onClick={() => navigate('/v1/datasource/aitools')}
+              >
+                🤖 AI TOOLS
+              </button>
+              <button 
+                className={`font-sans font-bold uppercase text-[12px] py-1.5 px-3.5 cursor-pointer shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 whitespace-nowrap hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-bg-primary active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] border-3 border-black text-text-primary flex-shrink-0 ${
+                  currentView === 'products' ? 'bg-accent-orange text-black shadow-[3px_3px_0px_#000000]' : 'bg-bg-card'
+                } max-md:py-1 max-md:px-2 max-md:text-[11px] max-md:shadow-[1.5px_1.5px_0px_#000]`}
+                onClick={() => navigate('/v1/datasource/products')}
+              >
+                📦 PRODUCT CATALOG
+              </button>
+              <button 
+                className={`font-sans font-bold uppercase text-[12px] py-1.5 px-3.5 cursor-pointer shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 whitespace-nowrap hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-bg-primary active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] border-3 border-black text-text-primary flex-shrink-0 ${
+                  currentView === 'apis' ? 'bg-accent-pink text-black shadow-[3px_3px_0px_#000000]' : 'bg-bg-card'
+                } max-md:py-1 max-md:px-2 max-md:text-[11px] max-md:shadow-[1.5px_1.5px_0px_#000]`}
+                onClick={() => navigate('/v1/datasource/apis')}
+              >
+                📡 CORE REST APIs
+              </button>
+            </div>
           </div>
 
-          <div className="nav-actions-wrapper" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+          {/* Right side: controls + connection status dot */}
+          <div className="flex items-center gap-4 md:gap-2 flex-shrink-0">
             <button 
               type="button"
-              className="fullscreen-btn"
               onClick={() => setLogsOpen(true)}
               title="VIEW SYSTEM CONSOLE LOGS"
-              style={{
-                background: 'var(--bg-secondary)',
-                padding: '6px 12px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                borderRadius: 'var(--radius-sm)'
-              }}
+              className="border-3 border-black text-text-primary cursor-pointer shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 bg-bg-secondary py-1.5 px-3 font-mono text-[14px] font-bold flex items-center justify-center rounded-sm hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-accent-cyan active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] max-md:hidden"
             >
-              📟 <span className="btn-label">VIEW_LOGS</span>
+              📟
             </button>
             <button 
               type="button"
-              className="fullscreen-btn"
               onClick={toggleFullScreen}
               title="TOGGLE FULLSCREEN"
-              style={{
-                background: 'var(--bg-secondary)',
-                padding: '6px 12px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                borderRadius: 'var(--radius-sm)'
-              }}
+              className="border-3 border-black text-text-primary cursor-pointer shadow-[2px_2px_0px_#000000] transition-[transform,box-shadow,background] duration-75 bg-bg-secondary py-1.5 px-3 font-mono text-[14px] font-bold flex items-center justify-center rounded-sm hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-accent-cyan active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] max-md:hidden"
             >
-              🖥️ <span className="btn-label">{isFullScreen ? 'EXIT_FULLSCREEN' : 'GO_FULLSCREEN'}</span>
+              🖥️
             </button>
-            <div className="connection-status">
-              <div className={`connection-dot ${connectionStatus}`}></div>
-              <span className="status-text">
-                {connectionStatus === 'connected' ? 'SYS_STATUS: ONLINE' :
-                 connectionStatus === 'connecting' ? 'SYS_STATUS: CONNECTING...' : 'SYS_STATUS: OFFLINE'}
+            <div className="flex items-center gap-2 text-[12.8px] font-bold font-mono border-3 border-black py-1.5 px-2.5 bg-bg-card rounded-sm max-md:hidden" title="CONNECTION STATUS">
+              <div className={`w-2.5 h-2.5 rounded-full border border-black ${
+                connectionStatus === 'connected' ? 'bg-accent-emerald' :
+                connectionStatus === 'connecting' ? 'bg-accent-amber animate-pulse' : 'bg-accent-rose'
+              }`}></div>
+              <span>
+                {connectionStatus === 'connected' ? 'ONLINE' :
+                 connectionStatus === 'connecting' ? 'CONNECTING...' : 'OFFLINE'}
               </span>
             </div>
+
+            {user && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="DISCONNECT SESSION / LOGOUT"
+                className="flex items-center gap-2 border-3 border-black bg-bg-card p-1 pr-3 rounded-sm shadow-[2px_2px_0px_#000] cursor-pointer transition-[transform,box-shadow,background] duration-75 hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] hover:bg-accent-rose/10 active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000] max-md:pr-1 max-md:pl-1 flex-shrink-0"
+              >
+                <div className="w-7 h-7 bg-accent-pink border-2 border-black rounded-full flex items-center justify-center text-sm shadow-[1px_1px_0px_#000] flex-shrink-0 font-sans">🕶️</div>
+                <div className="flex flex-col text-[11px] leading-tight text-left max-md:hidden flex-shrink-0">
+                  <span className="font-display font-black uppercase truncate max-w-[100px]" title={user.full_name}>{user.full_name}</span>
+                  <span className="font-mono text-[9px] text-text-muted font-bold">{user.assigned_rm_id} (LOGOUT)</span>
+                </div>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="view-container">
-          {currentView === 'chat' ? (
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {currentView === 'chat' && (
             <ChatInterface
               user={user}
               threadId={threadId}
@@ -448,122 +293,75 @@ export default function App() {
               connectionStatus={connectionStatus}
               onSendMessage={sendMessage}
             />
-          ) : (
-            <CoreMetrics 
-              activeTab={currentView} 
-              onSelectTab={(tab) => navigate(`/v1/datasource/${tab === 'customers' ? 'customer' : tab}`)} 
-              user={user} 
-            />
+          )}
+          {currentView === 'customers' && (
+            <CustomerDirectory user={user} />
+          )}
+          {currentView === 'aitools' && (
+            <AgentTools />
+          )}
+          {currentView === 'products' && (
+            <ProductCatalog />
+          )}
+          {currentView === 'apis' && (
+            <ApiEndpoints />
           )}
         </div>
       </div>
 
       {/* Global Logs Popup Modal */}
       {logsOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: 'var(--space-md)'
-        }} onClick={() => setLogsOpen(false)}>
-          <div style={{
-            background: 'var(--bg-secondary)',
-            border: 'var(--border-solid)',
-            boxShadow: 'var(--shadow-lg)',
-            width: '100%',
-            maxWidth: '650px',
-            borderRadius: 'var(--radius-md)',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            maxHeight: '80vh'
-          }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[1000] p-4 backdrop-blur-[2px]" onClick={() => setLogsOpen(false)}>
+          <div className="bg-bg-secondary border-3 border-black shadow-brutal-lg w-full max-w-[650px] rounded-md overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
-            <div style={{
-              background: 'var(--accent-pink)',
-              color: '#000000',
-              padding: 'var(--space-md)',
-              borderBottom: 'var(--border-solid)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <span style={{ fontWeight: '900', fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>
+            <div className="bg-accent-pink text-black p-4 border-b-3 border-black flex items-center justify-between">
+              <span className="font-black font-mono text-[13.1px]">
                 📟 SESSION_LOGS_CONSOLE
               </span>
               <button 
                 type="button"
                 onClick={() => setLogsOpen(false)}
-                style={{
-                  background: '#ffffff',
-                  border: 'var(--border-solid)',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  padding: '2px 8px',
-                  boxShadow: '2px 2px 0px #000000',
-                  color: '#000000'
-                }}
+                className="bg-white border-3 border-black cursor-pointer font-bold py-0.5 px-2 shadow-[2px_2px_0px_#000000] text-black font-sans transition-[transform,box-shadow] duration-75 hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000]"
               >
                 ✖
               </button>
             </div>
             {/* Modal Content */}
-            <div style={{
-              padding: 'var(--space-md)',
-              overflowY: 'auto',
-              flex: 1,
-              background: 'var(--bg-primary)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-md)'
-            }}>
+            <div className="p-4 overflow-y-auto flex-1 bg-bg-primary flex flex-col gap-4">
               {logs.length > 0 ? (
                 (() => {
                   const filteredLogs = logs.filter(log => log.thread_id === threadId)
                   if (filteredLogs.length === 0) {
-                    return <div className="no-logs">No execution logs recorded for this active thread.</div>
+                    return <div className="no-logs font-mono text-[13.6px] text-text-secondary text-center py-8">No execution logs recorded for this active thread.</div>
                   }
                   return filteredLogs.map(log => (
-                    <div key={log.id} className="log-item" style={{
-                      padding: 'var(--space-sm)',
-                      background: 'var(--bg-card)',
-                      border: 'var(--border-solid)',
-                      boxShadow: '2px 2px 0px #000',
-                      marginBottom: 'var(--space-sm)'
-                    }}>
-                      <div className="log-query" style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>SYS_IN: "{log.query}"</div>
-                      <div className="log-tokens" style={{ display: 'flex', gap: '8px', margin: '4px 0' }}>
-                        <span className="token-badge input" style={{ fontSize: '0.65rem', background: 'var(--accent-yellow)', padding: '2px 6px', border: '1px solid #000' }}>IN: {log.token_count_input}</span>
-                        <span className="token-badge output" style={{ fontSize: '0.65rem', background: 'var(--accent-cyan)', padding: '2px 6px', border: '1px solid #000' }}>OUT: {log.token_count_output}</span>
-                        <span className="token-badge total" style={{ fontSize: '0.65rem', background: 'var(--accent-lime)', padding: '2px 6px', border: '1px solid #000', fontWeight: 'bold' }}>TOT: {log.total_tokens}</span>
+                    <div key={log.id} className="p-2 bg-bg-card border-3 border-black shadow-[2px_2px_0px_#000] mb-2">
+                      <div className="font-bold text-[12.8px] font-mono">SYS_IN: "{log.query}"</div>
+                      <div className="flex gap-2 my-1">
+                        <span className="font-mono text-[10.4px] font-bold border border-black py-0.5 px-1.5 text-black bg-accent-yellow">IN: {log.token_count_input}</span>
+                        <span className="font-mono text-[10.4px] font-bold border border-black py-0.5 px-1.5 text-black bg-accent-cyan">OUT: {log.token_count_output}</span>
+                        <span className="font-mono text-[10.4px] font-bold border border-black py-0.5 px-1.5 text-black bg-accent-lime font-bold">TOT: {log.total_tokens}</span>
                       </div>
-                      <div className="log-flow" style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>
+                      <div className="text-[11.5px] font-mono my-1">
                         {log.execution_flow && log.execution_flow.length > 0 ? (
                           log.execution_flow.map((step, sIdx) => (
-                            <span key={sIdx} className="flow-step-tag">
+                            <span key={sIdx} className="text-black bg-accent-orange py-0 px-0.5 border border-black inline-block mr-1">
                               {step.name}
                               {sIdx < log.execution_flow.length - 1 ? ' ➔ ' : ''}
                             </span>
                           ))
                         ) : (
-                          <span className="flow-empty">DIRECT_RESPONSE</span>
+                          <span className="italic text-text-muted">DIRECT_RESPONSE</span>
                         )}
                       </div>
-                      <div className="log-time" style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                      <div className="text-[10.4px] text-text-muted text-right">
                         {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </div>
                     </div>
                   ))
                 })()
               ) : (
-                <div className="no-logs">Console buffer empty.</div>
+                <div className="font-mono text-[13.6px] text-text-secondary text-center py-8">Console buffer empty.</div>
               )}
             </div>
           </div>
@@ -572,38 +370,41 @@ export default function App() {
 
       {/* Centered Brutalist Logout Confirmation Modal */}
       {logoutConfirmOpen && (
-        <div className="brutalist-modal-overlay" onClick={() => setLogoutConfirmOpen(false)}>
-          <div className="brutalist-modal-card" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header-banner" style={{ background: 'var(--accent-red)' }}>
-              <h3 style={{ margin: 0 }}>⚠️ DISCONNECT SESSION</h3>
-              <button className="modal-close-btn" onClick={() => setLogoutConfirmOpen(false)}>✖</button>
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[1000] p-4 backdrop-blur-[2px]" onClick={() => setLogoutConfirmOpen(false)}>
+          <div className="bg-bg-secondary border-3 border-black shadow-brutal-lg w-full max-w-[420px] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="border-b-3 border-black p-4 flex justify-between items-center color-black bg-accent-red">
+              <h3 className="margin-0 font-display font-black text-[17.6px] tracking-wider">⚠️ DISCONNECT SESSION</h3>
+              <button 
+                className="bg-white border-3 border-black cursor-pointer font-bold py-0.5 px-2 shadow-[2px_2px_0px_#000000] text-black font-sans transition-[transform,box-shadow] duration-75 hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#000000]"
+                onClick={() => setLogoutConfirmOpen(false)}
+              >
+                ✖
+              </button>
             </div>
-            <div className="modal-form" style={{ padding: 'var(--space-md) var(--space-lg)' }}>
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '8px', lineHeight: '1.5' }}>
+            <div className="p-4 bg-bg-primary flex flex-col gap-4">
+              <div className="font-sans text-[14.4px] text-text-primary mb-2 leading-relaxed">
                 Are you sure you want to disconnect and terminate your Relationship Manager session?
               </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '8px', border: '1px solid #000', borderRadius: '4px', marginBottom: '8px' }}>
+              <div className="font-mono text-[11.5px] text-text-muted bg-bg-secondary p-2 border border-black rounded mb-2">
                 All active conversation threads and session tokens will be cleared.
               </div>
-              <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: '8px' }}>
+              <div className="flex gap-4">
                 <button 
                   type="button" 
-                  className="modal-submit-btn-neo" 
-                  style={{ background: 'var(--accent-red)', marginTop: 0, flex: 1 }}
+                  className="w-full bg-accent-red text-black border-3 border-black py-3 text-xs font-bold uppercase tracking-wide cursor-pointer transition-[transform,box-shadow,background] duration-75 shadow-[3px_3px_0px_#000000] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_#000000] hover:bg-accent-red-hover active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
                   onClick={() => {
                     setLogoutConfirmOpen(false)
                     localStorage.removeItem('user')
                     setUser(null)
                     newChat()
-                    navigate('/v1/agent/ask')
+                    navigate('/v1/auth/login')
                   }}
                 >
                   🔌 DISCONNECT
                 </button>
                 <button 
                   type="button" 
-                  className="cancel-btn-neo" 
-                  style={{ marginTop: 0, flex: 1 }}
+                  className="w-full bg-white text-black border-3 border-black py-3 text-xs font-bold uppercase tracking-wide cursor-pointer transition-[transform,box-shadow,background] duration-75 shadow-[3px_3px_0px_#000000] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_#000000] hover:bg-bg-primary active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
                   onClick={() => setLogoutConfirmOpen(false)}
                 >
                   CANCEL
