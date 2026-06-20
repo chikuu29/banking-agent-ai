@@ -222,6 +222,9 @@ export default function App() {
   // URL path-based state routing
   const [currentPath, setCurrentPath] = useState(window.location.pathname)
   
+  // Logout confirmation modal state
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+  
   // Fullscreen and System Logs State
   const [isFullScreen, setIsFullScreen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
@@ -310,12 +313,7 @@ export default function App() {
   }, [])
 
   const handleLogout = () => {
-    if (window.confirm("Are you sure you want to disconnect and terminate your current session?")) {
-      localStorage.removeItem('user')
-      setUser(null)
-      newChat()
-      navigate('/v1/agent/ask')
-    }
+    setLogoutConfirmOpen(true)
   }
 
   if (!user) {
@@ -549,6 +547,50 @@ export default function App() {
               ) : (
                 <div className="no-logs">Console buffer empty.</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Centered Brutalist Logout Confirmation Modal */}
+      {logoutConfirmOpen && (
+        <div className="brutalist-modal-overlay" onClick={() => setLogoutConfirmOpen(false)}>
+          <div className="brutalist-modal-card" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header-banner" style={{ background: 'var(--accent-red)' }}>
+              <h3 style={{ margin: 0 }}>⚠️ DISCONNECT SESSION</h3>
+              <button className="modal-close-btn" onClick={() => setLogoutConfirmOpen(false)}>✖</button>
+            </div>
+            <div className="modal-form" style={{ padding: 'var(--space-md) var(--space-lg)' }}>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '8px', lineHeight: '1.5' }}>
+                Are you sure you want to disconnect and terminate your Relationship Manager session?
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '8px', border: '1px solid #000', borderRadius: '4px', marginBottom: '8px' }}>
+                All active conversation threads and session tokens will be cleared.
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: '8px' }}>
+                <button 
+                  type="button" 
+                  className="modal-submit-btn-neo" 
+                  style={{ background: 'var(--accent-red)', marginTop: 0, flex: 1 }}
+                  onClick={() => {
+                    setLogoutConfirmOpen(false)
+                    localStorage.removeItem('user')
+                    setUser(null)
+                    newChat()
+                    navigate('/v1/agent/ask')
+                  }}
+                >
+                  🔌 DISCONNECT
+                </button>
+                <button 
+                  type="button" 
+                  className="cancel-btn-neo" 
+                  style={{ marginTop: 0, flex: 1 }}
+                  onClick={() => setLogoutConfirmOpen(false)}
+                >
+                  CANCEL
+                </button>
+              </div>
             </div>
           </div>
         </div>

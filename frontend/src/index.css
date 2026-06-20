@@ -3331,4 +3331,31 @@ body {
   box-shadow: none;
 }
 
+.cancel-btn-neo {
+  background: #ffffff;
+  color: #000000 !important;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 12px;
+  border: var(--border-solid);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  text-align: center;
+  font-size: 0.82rem;
+  width: 100%;
+}
+
+.cancel-btn-neo:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-md);
+  background: #f4f0eb !important;
+}
+
+.cancel-btn-neo:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
 
