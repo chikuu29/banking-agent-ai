@@ -46,6 +46,9 @@ export default function App() {
   // Sidebar state for mobile layout
   const [sidebarOpen, setSidebarOpen] = useState(false)
   
+  // Sidebar state for desktop collapsible layout
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  
   // Fullscreen and System Logs State
   const [isFullScreen, setIsFullScreen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
@@ -158,20 +161,31 @@ export default function App() {
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[999]" onClick={() => setSidebarOpen(false)} />
       )}
-      <Sidebar 
-        user={user}
-        threads={threads}
-        currentThreadId={threadId}
-        onSelectThread={(tId) => { setThreadId(tId); navigate('/v1/agent/ask'); setSidebarOpen(false); }}
-        onDeleteThread={deleteThread}
-        onSendMessage={(msg) => { sendMessage(msg); setSidebarOpen(false); }} 
-        onNewChat={() => { newChat(); navigate('/v1/agent/ask'); setSidebarOpen(false); }} 
-        onLogout={handleLogout}
-        currentPath={currentPath}
-        onNavigate={(path) => { navigate(path); setSidebarOpen(false); }}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
+      <div className="relative flex-shrink-0 z-20">
+        <Sidebar 
+          user={user}
+          threads={threads}
+          currentThreadId={threadId}
+          onSelectThread={(tId) => { setThreadId(tId); navigate('/v1/agent/ask'); setSidebarOpen(false); }}
+          onDeleteThread={deleteThread}
+          onSendMessage={(msg) => { sendMessage(msg); setSidebarOpen(false); }} 
+          onNewChat={() => { newChat(); navigate('/v1/agent/ask'); setSidebarOpen(false); }} 
+          onLogout={handleLogout}
+          currentPath={currentPath}
+          onNavigate={(path) => { navigate(path); setSidebarOpen(false); }}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          isCollapsed={isSidebarCollapsed}
+        />
+        <button
+          type="button"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="hidden md:flex absolute top-[80px] right-0 translate-x-1/2 z-[30] w-6 h-12 bg-accent-yellow border-3 border-black items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000] hover:bg-accent-yellow-hover active:translate-y-[2px] active:translate-x-[calc(50%+2px)] active:shadow-none text-black font-bold text-sm"
+          title={isSidebarCollapsed ? "EXPAND SIDEBAR" : "COLLAPSE SIDEBAR"}
+        >
+          {isSidebarCollapsed ? '▶' : '◀'}
+        </button>
+      </div>
       <div className="flex-1 flex flex-col h-dvh overflow-hidden">
         {/* Unified Top Navbar / Dataview & Controls */}
         <div className="bg-bg-secondary border-b-3 border-black py-2.5 px-4 flex justify-between items-center z-[15] gap-4 w-full relative max-md:flex-nowrap max-md:py-2 max-md:px-3">
