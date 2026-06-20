@@ -11,9 +11,12 @@ export default function ChatInterface({ user, threadId, messages, isLoading, con
   const messagesEndRef = useRef(null)
 
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom with a small timeout to let layout settle
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 50)
+    return () => clearTimeout(timer)
   }, [messages, isLoading])
 
   // Handle send
@@ -46,9 +49,11 @@ export default function ChatInterface({ user, threadId, messages, isLoading, con
         elements.push(
           <div key={`tools-${toolCallGroup[0].id}`} className="w-full max-w-full self-start flex flex-col gap-2 mb-2">
             <div className="bg-accent-lime text-black border-2 border-black rounded px-2 py-0.5 shadow-[2px_2px_0px_#000000] font-mono text-[11.5px] font-extrabold tracking-wider uppercase inline-flex self-start">🔧 Tool Calls</div>
-            {toolCallGroup.map(tc => (
-              <ToolCallCard key={tc.id} toolCall={tc} />
-            ))}
+            <div className="flex flex-wrap gap-2 items-center">
+              {toolCallGroup.map(tc => (
+                <ToolCallCard key={tc.id} toolCall={tc} />
+              ))}
+            </div>
           </div>
         )
         toolCallGroup = []
@@ -178,11 +183,11 @@ export default function ChatInterface({ user, threadId, messages, isLoading, con
         <div className="flex-1 overflow-y-auto p-6 md:p-4 flex flex-col gap-6 bg-bg-primary bg-[radial-gradient(rgba(0,0,0,0.06)_1.2px,transparent_1.2px)] bg-[size:24px_24px] scroll-smooth">
           {renderMessages()}
           {isLoading && (
-            <div className="inline-flex items-center gap-4 bg-accent-yellow text-black border-3 border-black shadow-[3px_3px_0px_#000000] py-2 px-4 font-mono text-[13.6px] font-bold tracking-wider my-2 rounded-md self-start animate-[float-small_2s_ease-in-out_infinite]">
+            <div className="inline-flex items-center gap-4 bg-accent-yellow text-black border-3 border-black shadow-[3px_3px_0px_#000000] py-2 px-4 font-mono text-[13.6px] font-bold tracking-wider my-2 rounded-md self-start thinking-bubble">
               <div className="flex gap-1.5 items-center">
-                <span className="w-2 h-2 bg-black rounded-full inline-block animate-[thinking-bounce_1.4s_infinite_ease-in-out_both]" style={{ animationDelay: '-0.32s' }}></span>
-                <span className="w-2 h-2 bg-black rounded-full inline-block animate-[thinking-bounce_1.4s_infinite_ease-in-out_both]" style={{ animationDelay: '-0.16s' }}></span>
-                <span className="w-2 h-2 bg-black rounded-full inline-block animate-[thinking-bounce_1.4s_infinite_ease-in-out_both]"></span>
+                <span className="thinking-dot" style={{ animationDelay: '-0.32s' }}></span>
+                <span className="thinking-dot" style={{ animationDelay: '-0.16s' }}></span>
+                <span className="thinking-dot"></span>
               </div>
               <span>
                 {activeToolCall 

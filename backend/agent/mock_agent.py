@@ -279,65 +279,71 @@ class MockAgent:
             }
             return
 
-        # Let's score the candidates and generate messages
+        # Let's score the candidates and generate messages in batch
+        cust_ids_str = ", ".join(str(c.get("id")) for c in customers[:3])
+        cust_names_str = ", ".join(c.get("name") for c in customers[:3])
+        
+        # 2. score_lead_conversion (batched)
+        yield {
+            "agent": {
+                "messages": [
+                    MockAIMessage(
+                        content=f"Scoring lead conversion probability for candidates: {cust_names_str} (IDs: {cust_ids_str}).",
+                        tool_calls=[{
+                            "name": "score_lead_conversion",
+                            "args": {"customer_ids": cust_ids_str, "product_type": "personal_loan"}
+                        }]
+                    )
+                ]
+            }
+        }
+        await asyncio.sleep(1.0)
+        score_res = await self._run_tool("score_lead_conversion", {"customer_ids": cust_ids_str, "product_type": "personal_loan"})
+        yield {"tools": {"messages": [MockToolMessage("score_lead_conversion", score_res)]}}
+        await asyncio.sleep(0.8)
+
+        # 3. generate_outreach_message (batched)
+        yield {
+            "agent": {
+                "messages": [
+                    MockAIMessage(
+                        content=f"Generating personalized WhatsApp outreach for candidates: {cust_names_str}.",
+                        tool_calls=[{
+                            "name": "generate_outreach_message",
+                            "args": {"customer_ids": cust_ids_str, "product_type": "personal_loan", "channel": "whatsapp"}
+                        }]
+                    )
+                ]
+            }
+        }
+        await asyncio.sleep(1.0)
+        msg_res = await self._run_tool("generate_outreach_message", {"customer_ids": cust_ids_str, "product_type": "personal_loan", "channel": "whatsapp"})
+        yield {"tools": {"messages": [MockToolMessage("generate_outreach_message", msg_res)]}}
+        await asyncio.sleep(0.8)
+
         top_candidates = []
-        for customer in customers[:3]:
-            cust_id = customer.get("id")
-            cust_name = customer.get("name")
-            
-            # 2. score_lead_conversion
-            yield {
-                "agent": {
-                    "messages": [
-                        MockAIMessage(
-                            content=f"Scoring lead conversion probability for {cust_name} (ID: {cust_id}).",
-                            tool_calls=[{
-                                "name": "score_lead_conversion",
-                                "args": {"customer_id": cust_id, "product_type": "personal_loan"}
-                            }]
-                        )
-                    ]
-                }
-            }
-            await asyncio.sleep(0.8)
-            score_res = await self._run_tool("score_lead_conversion", {"customer_id": cust_id, "product_type": "personal_loan"})
-            yield {"tools": {"messages": [MockToolMessage("score_lead_conversion", score_res)]}}
-            await asyncio.sleep(0.5)
-
-            # 3. generate_outreach_message
-            yield {
-                "agent": {
-                    "messages": [
-                        MockAIMessage(
-                            content=f"Generating personalized WhatsApp outreach for {cust_name}.",
-                            tool_calls=[{
-                                "name": "generate_outreach_message",
-                                "args": {"customer_id": cust_id, "product_type": "personal_loan", "channel": "whatsapp"}
-                            }]
-                        )
-                    ]
-                }
-            }
-            await asyncio.sleep(0.8)
-            msg_res = await self._run_tool("generate_outreach_message", {"customer_id": cust_id, "product_type": "personal_loan", "channel": "whatsapp"})
-            yield {"tools": {"messages": [MockToolMessage("generate_outreach_message", msg_res)]}}
-            await asyncio.sleep(0.5)
-
-            try:
-                score_data = json.loads(score_res)
-                msg_data = json.loads(msg_res)
+        try:
+            scores_data = json.loads(score_res)
+            msgs_data = json.loads(msg_res)
+            for idx, customer in enumerate(customers[:3]):
+                cust_id = customer.get("id")
+                cust_name = customer.get("name")
+                
+                score_item = scores_data[idx] if idx < len(scores_data) else {}
+                msg_item = msgs_data[idx] if idx < len(msgs_data) else {}
+                
                 top_candidates.append({
                     "id": cust_id,
                     "name": cust_name,
                     "income": customer.get("annual_income"),
                     "credit_score": customer.get("credit_score"),
-                    "score": score_data.get("score", 0),
-                    "label": score_data.get("label", "Medium"),
-                    "reasons": score_data.get("factors", [])[:2],
-                    "message": msg_data.get("message", "")
+                    "score": score_item.get("score", 0),
+                    "label": score_item.get("label", "Medium"),
+                    "reasons": score_item.get("factors", [])[:2],
+                    "message": msg_item.get("message", "")
                 })
-            except Exception:
-                pass
+        except Exception as e:
+            logger.error("[MockAgent] Failed to parse batch results in personal loan campaign: %s", e)
 
         # Final Summary
         logger.info("[MockAgent] Personal Loan Campaign: simulation complete. Generated outreach for %d candidates", len(top_candidates))
@@ -574,63 +580,69 @@ class MockAgent:
             }
             return
 
+        cust_ids_str = ", ".join(str(c.get("id")) for c in customers[:2])
+        cust_names_str = ", ".join(c.get("name") for c in customers[:2])
+
+        # 2. score_lead_conversion (batched)
+        yield {
+            "agent": {
+                "messages": [
+                    MockAIMessage(
+                        content=f"Scoring credit card upgrade conversion for candidates: {cust_names_str} (IDs: {cust_ids_str}).",
+                        tool_calls=[{
+                            "name": "score_lead_conversion",
+                            "args": {"customer_ids": cust_ids_str, "product_type": "credit_card"}
+                        }]
+                    )
+                ]
+            }
+        }
+        await asyncio.sleep(1.0)
+        score_res = await self._run_tool("score_lead_conversion", {"customer_ids": cust_ids_str, "product_type": "credit_card"})
+        yield {"tools": {"messages": [MockToolMessage("score_lead_conversion", score_res)]}}
+        await asyncio.sleep(0.8)
+
+        # 3. generate_outreach_message (batched)
+        yield {
+            "agent": {
+                "messages": [
+                    MockAIMessage(
+                        content=f"Generating Credit Card upgrade WhatsApp messages for candidates: {cust_names_str}.",
+                        tool_calls=[{
+                            "name": "generate_outreach_message",
+                            "args": {"customer_ids": cust_ids_str, "product_type": "credit_card", "channel": "whatsapp"}
+                        }]
+                    )
+                ]
+            }
+        }
+        await asyncio.sleep(1.0)
+        msg_res = await self._run_tool("generate_outreach_message", {"customer_ids": cust_ids_str, "product_type": "credit_card", "channel": "whatsapp"})
+        yield {"tools": {"messages": [MockToolMessage("generate_outreach_message", msg_res)]}}
+        await asyncio.sleep(0.8)
+
         top_candidates = []
-        for customer in customers[:2]:
-            cust_id = customer.get("id")
-            cust_name = customer.get("name")
-
-            # Score card
-            yield {
-                "agent": {
-                    "messages": [
-                        MockAIMessage(
-                            content=f"Scoring credit card upgrade conversion for {cust_name}...",
-                            tool_calls=[{
-                                "name": "score_lead_conversion",
-                                "args": {"customer_id": cust_id, "product_type": "credit_card"}
-                            }]
-                        )
-                    ]
-                }
-            }
-            await asyncio.sleep(0.8)
-            score_res = await self._run_tool("score_lead_conversion", {"customer_id": cust_id, "product_type": "credit_card"})
-            yield {"tools": {"messages": [MockToolMessage("score_lead_conversion", score_res)]}}
-            await asyncio.sleep(0.5)
-
-            # Generate outreach message
-            yield {
-                "agent": {
-                    "messages": [
-                        MockAIMessage(
-                            content=f"Generating Credit Card upgrade WhatsApp message for {cust_name}...",
-                            tool_calls=[{
-                                "name": "generate_outreach_message",
-                                "args": {"customer_id": cust_id, "product_type": "credit_card", "channel": "whatsapp"}
-                            }]
-                        )
-                    ]
-                }
-            }
-            await asyncio.sleep(0.8)
-            msg_res = await self._run_tool("generate_outreach_message", {"customer_id": cust_id, "product_type": "credit_card", "channel": "whatsapp"})
-            yield {"tools": {"messages": [MockToolMessage("generate_outreach_message", msg_res)]}}
-            await asyncio.sleep(0.5)
-
-            try:
-                score_data = json.loads(score_res)
-                msg_data = json.loads(msg_res)
+        try:
+            scores_data = json.loads(score_res)
+            msgs_data = json.loads(msg_res)
+            for idx, customer in enumerate(customers[:2]):
+                cust_id = customer.get("id")
+                cust_name = customer.get("name")
+                
+                score_item = scores_data[idx] if idx < len(scores_data) else {}
+                msg_item = msgs_data[idx] if idx < len(msgs_data) else {}
+                
                 top_candidates.append({
                     "id": cust_id,
                     "name": cust_name,
                     "city": customer.get("city"),
                     "income": customer.get("annual_income"),
-                    "score": score_data.get("score", 0),
-                    "label": score_data.get("label", "Medium"),
-                    "message": msg_data.get("message", "")
+                    "score": score_item.get("score", 0),
+                    "label": score_item.get("label", "Medium"),
+                    "message": msg_item.get("message", "")
                 })
-            except Exception:
-                pass
+        except Exception as e:
+            logger.error("[MockAgent] Failed to parse batch results in credit card campaign: %s", e)
 
         summary_md = f"### 💳 Credit Card Upgrade Campaign: {tier_val} Tier ({city_val})\n\n"
         summary_md += "Targeting Gold/Platinum customers with credit card upgrade options based on salary growth and credit rating:\n\n"

@@ -98,155 +98,268 @@ def search_customers(
 
 
 @tool
-def get_customer_profile(customer_id: int) -> str:
-    """Get detailed 360-degree profile for a specific customer.
-    
-    Returns complete demographics, account information, existing products,
-    recent interaction history, and relationship metrics.
+def get_customer_profile(customer_id: int = None, customer_ids: str = None) -> str:
+    """Get detailed 360-degree profile for one or more specific customers.
     
     Args:
-        customer_id: The unique customer ID
+        customer_id: The unique customer ID (for single customer lookup)
+        customer_ids: Comma-separated list of customer IDs (e.g. '1, 2, 3') for batch lookup
     
     Returns:
-        JSON object with full customer profile
+        JSON object or list of profiles
     """
-    logger.info("🔧 [TOOL] get_customer_profile(customer_id=%d)", customer_id)
+    logger.info("🔧 [TOOL] get_customer_profile(customer_id=%s, customer_ids=%s)", customer_id, customer_ids)
     start = time.perf_counter()
-    result = _api_get(f"/api/v1/customers/{customer_id}")
+    
+    ids = []
+    if customer_id is not None:
+        ids.append(customer_id)
+    if customer_ids:
+        for part in customer_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+                
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return json.dumps({"error": "No valid customer IDs provided"})
+        
+    results = []
+    for cid in ids:
+        try:
+            profile = _api_get(f"/api/v1/customers/{cid}")
+            results.append(profile)
+        except Exception as e:
+            results.append({"id": cid, "error": f"Failed to retrieve profile: {e}"})
+            
     elapsed = (time.perf_counter() - start) * 1000
-    customer_name = result.get("name", "unknown") if isinstance(result, dict) else "unknown"
-    logger.info("🔧 [TOOL] get_customer_profile → customer='%s' in %.1fms", customer_name, elapsed)
-    return json.dumps(result, indent=2, default=str)
+    is_batch = len(ids) > 1 or (customer_ids is not None and "," in customer_ids)
+    
+    if is_batch:
+        logger.info("🔧 [TOOL] get_customer_profile (batch of %d) finished in %.1fms", len(ids), elapsed)
+        return json.dumps(results, indent=2, default=str)
+    else:
+        customer_name = results[0].get("name", "unknown") if results and "error" not in results[0] else "unknown"
+        logger.info("🔧 [TOOL] get_customer_profile → customer='%s' in %.1fms", customer_name, elapsed)
+        return json.dumps(results[0] if results else {}, indent=2, default=str)
 
 
 @tool
-def get_customer_transactions(customer_id: int, months: int = 6) -> str:
-    """Fetch transaction history and spending analysis for a customer.
-    
-    Returns recent transactions plus aggregated summary including
-    income, expenses, top spending categories, and EMI burden analysis.
+def get_customer_transactions(customer_id: int = None, customer_ids: str = None, months: int = 6) -> str:
+    """Fetch transaction history and spending analysis for one or more customers.
     
     Args:
-        customer_id: The unique customer ID
+        customer_id: The unique customer ID (for single customer lookup)
+        customer_ids: Comma-separated list of customer IDs (e.g. '1, 2, 3') for batch lookup
         months: Number of months of history to fetch (1-24, default 6)
     
     Returns:
-        JSON with transactions list and summary statistics
+        JSON object or list of transaction responses
     """
-    logger.info("🔧 [TOOL] get_customer_transactions(customer_id=%d, months=%d)", customer_id, months)
+    logger.info("🔧 [TOOL] get_customer_transactions(customer_id=%s, customer_ids=%s, months=%d)", customer_id, customer_ids, months)
     start = time.perf_counter()
-    result = _api_get(f"/api/v1/customers/{customer_id}/transactions", {"months": months})
-    # Trim individual transactions for readability, keep summary
-    txn_count = len(result.get("transactions", [])) if isinstance(result, dict) else 0
-    if "transactions" in result and len(result["transactions"]) > 10:
-        result["transactions"] = result["transactions"][:10]
-        result["note"] = "Showing 10 most recent transactions. Full data available via API."
+    
+    ids = []
+    if customer_id is not None:
+        ids.append(customer_id)
+    if customer_ids:
+        for part in customer_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+                
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return json.dumps({"error": "No valid customer IDs provided"})
+        
+    results = []
+    for cid in ids:
+        try:
+            res = _api_get(f"/api/v1/customers/{cid}/transactions", {"months": months})
+            # Trim individual transactions for readability, keep summary
+            txn_count = len(res.get("transactions", [])) if isinstance(res, dict) else 0
+            if "transactions" in res and len(res["transactions"]) > 10:
+                res["transactions"] = res["transactions"][:10]
+                res["note"] = "Showing 10 most recent transactions. Full data available via API."
+            results.append(res)
+        except Exception as e:
+            results.append({"customer_id": cid, "error": f"Failed to retrieve transactions: {e}"})
+            
     elapsed = (time.perf_counter() - start) * 1000
-    logger.info("🔧 [TOOL] get_customer_transactions → %d transactions (trimmed to %d) in %.1fms",
-                txn_count, len(result.get("transactions", [])), elapsed)
-    return json.dumps(result, indent=2, default=str)
+    is_batch = len(ids) > 1 or (customer_ids is not None and "," in customer_ids)
+    
+    if is_batch:
+        logger.info("🔧 [TOOL] get_customer_transactions (batch of %d) finished in %.1fms", len(ids), elapsed)
+        return json.dumps(results, indent=2, default=str)
+    else:
+        logger.info("🔧 [TOOL] get_customer_transactions → finished in %.1fms", elapsed)
+        return json.dumps(results[0] if results else {}, indent=2, default=str)
 
 
 @tool
-def get_credit_score(customer_id: int) -> str:
-    """Get credit score and detailed factor breakdown for a customer.
-    
-    Returns the credit score, rating category (Excellent/Good/Fair/Poor),
-    and individual factors that contribute to the score.
+def get_credit_score(customer_id: int = None, customer_ids: str = None) -> str:
+    """Get credit score and detailed factor breakdown for one or more customers.
     
     Args:
-        customer_id: The unique customer ID
+        customer_id: The unique customer ID (for single customer lookup)
+        customer_ids: Comma-separated list of customer IDs (e.g. '1, 2, 3') for batch lookup
     
     Returns:
-        JSON with score, rating, and factor analysis
+        JSON object or list of credit score responses
     """
-    logger.info("🔧 [TOOL] get_credit_score(customer_id=%d)", customer_id)
+    logger.info("🔧 [TOOL] get_credit_score(customer_id=%s, customer_ids=%s)", customer_id, customer_ids)
     start = time.perf_counter()
-    result = _api_get(f"/api/v1/customers/{customer_id}/credit-score")
+    
+    ids = []
+    if customer_id is not None:
+        ids.append(customer_id)
+    if customer_ids:
+        for part in customer_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+                
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return json.dumps({"error": "No valid customer IDs provided"})
+        
+    results = []
+    for cid in ids:
+        try:
+            res = _api_get(f"/api/v1/customers/{cid}/credit-score")
+            results.append(res)
+        except Exception as e:
+            results.append({"customer_id": cid, "error": f"Failed to retrieve credit score: {e}"})
+            
     elapsed = (time.perf_counter() - start) * 1000
-    score = result.get("score", "?") if isinstance(result, dict) else "?"
-    rating = result.get("rating", "?") if isinstance(result, dict) else "?"
-    logger.info("🔧 [TOOL] get_credit_score → score=%s, rating=%s in %.1fms", score, rating, elapsed)
-    return json.dumps(result, indent=2, default=str)
+    is_batch = len(ids) > 1 or (customer_ids is not None and "," in customer_ids)
+    
+    if is_batch:
+        logger.info("🔧 [TOOL] get_credit_score (batch of %d) finished in %.1fms", len(ids), elapsed)
+        return json.dumps(results, indent=2, default=str)
+    else:
+        score = results[0].get("score", "?") if results and "error" not in results[0] else "?"
+        rating = results[0].get("rating", "?") if results and "error" not in results[0] else "?"
+        logger.info("🔧 [TOOL] get_credit_score → score=%s, rating=%s in %.1fms", score, rating, elapsed)
+        return json.dumps(results[0] if results else {}, indent=2, default=str)
 
 
 @tool
-def check_product_eligibility(customer_id: int) -> str:
-    """Check which banking products a customer is eligible for.
-    
-    Evaluates each product against the customer's income and credit score.
-    Returns eligibility status, fit score (0-100), and detailed reasons.
+def check_product_eligibility(customer_id: int = None, customer_ids: str = None) -> str:
+    """Check which banking products one or more customers are eligible for.
     
     Args:
-        customer_id: The unique customer ID
+        customer_id: The unique customer ID (for single customer lookup)
+        customer_ids: Comma-separated list of customer IDs (e.g. '1, 2, 3') for batch lookup
     
     Returns:
-        JSON with list of products and their eligibility details
+        JSON object or list of product eligibility responses
     """
-    logger.info("🔧 [TOOL] check_product_eligibility(customer_id=%d)", customer_id)
+    logger.info("🔧 [TOOL] check_product_eligibility(customer_id=%s, customer_ids=%s)", customer_id, customer_ids)
     start = time.perf_counter()
-    result = _api_get(f"/api/v1/customers/{customer_id}/product-eligibility")
+    
+    ids = []
+    if customer_id is not None:
+        ids.append(customer_id)
+    if customer_ids:
+        for part in customer_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+                
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return json.dumps({"error": "No valid customer IDs provided"})
+        
+    results = []
+    for cid in ids:
+        try:
+            res = _api_get(f"/api/v1/customers/{cid}/product-eligibility")
+            results.append(res)
+        except Exception as e:
+            results.append({"customer_id": cid, "error": f"Failed to retrieve eligibility: {e}"})
+            
     elapsed = (time.perf_counter() - start) * 1000
-    eligible_count = sum(1 for p in result.get("eligible_products", []) if p.get("eligible")) if isinstance(result, dict) else 0
-    total_products = len(result.get("eligible_products", [])) if isinstance(result, dict) else 0
-    logger.info("🔧 [TOOL] check_product_eligibility → %d/%d eligible in %.1fms", eligible_count, total_products, elapsed)
-    return json.dumps(result, indent=2, default=str)
+    is_batch = len(ids) > 1 or (customer_ids is not None and "," in customer_ids)
+    
+    if is_batch:
+        logger.info("🔧 [TOOL] check_product_eligibility (batch of %d) finished in %.1fms", len(ids), elapsed)
+        return json.dumps(results, indent=2, default=str)
+    else:
+        logger.info("🔧 [TOOL] check_product_eligibility → finished in %.1fms", elapsed)
+        return json.dumps(results[0] if results else {}, indent=2, default=str)
 
 
 @tool
-def score_lead_conversion(customer_id: int, product_type: str) -> str:
-    """Score a customer's likelihood to convert for a specific product.
-    
-    Uses a multi-factor scoring engine that evaluates income adequacy,
-    credit score, spending capacity, EMI burden, engagement recency,
-    product gaps, relationship tenure, and salary trends.
-    
-    Returns a score (0-100), confidence level, and detailed factor breakdown.
+def score_lead_conversion(customer_id: int = None, customer_ids: str = None, product_type: str = None) -> str:
+    """Score conversion likelihood for one or more customers for a specific product.
     
     Args:
-        customer_id: The unique customer ID
-        product_type: Product type to score for. Options:
-            - personal_loan
-            - home_loan  
-            - credit_card
-            - mutual_fund
-            - fixed_deposit
-            - insurance
+        customer_id: The unique customer ID (for single customer scoring)
+        customer_ids: Comma-separated list of customer IDs (e.g. '1, 2, 3') for batch scoring
+        product_type: Product type to score for. Options: personal_loan, home_loan, credit_card, mutual_fund, fixed_deposit, insurance
     
     Returns:
-        JSON with score, label (High/Medium/Low), factors, and summary
+        JSON object or list of scoring results
     """
-    logger.info("🔧 [TOOL] score_lead_conversion(customer_id=%d, product_type='%s')", customer_id, product_type)
+    logger.info("🔧 [TOOL] score_lead_conversion(customer_id=%s, customer_ids=%s, product_type='%s')", customer_id, customer_ids, product_type)
     start = time.perf_counter()
-    result = score_customer(customer_id, product_type)
+    
+    ids = []
+    if customer_id is not None:
+        ids.append(customer_id)
+    if customer_ids:
+        for part in customer_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+                
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return json.dumps({"error": "No valid customer IDs provided"})
+        
+    results = []
+    for cid in ids:
+        try:
+            res = score_customer(cid, product_type)
+            results.append(res)
+        except Exception as e:
+            results.append({"customer_id": cid, "product_type": product_type, "error": f"Failed to score: {e}"})
+            
     elapsed = (time.perf_counter() - start) * 1000
-    score = result.get("score", "?")
-    label = result.get("label", "?")
-    logger.info("🔧 [TOOL] score_lead_conversion → score=%s, label=%s in %.1fms", score, label, elapsed)
-    return json.dumps(result, indent=2, default=str)
+    is_batch = len(ids) > 1 or (customer_ids is not None and "," in customer_ids)
+    
+    if is_batch:
+        logger.info("🔧 [TOOL] score_lead_conversion (batch of %d) finished in %.1fms", len(ids), elapsed)
+        return json.dumps(results, indent=2, default=str)
+    else:
+        score = results[0].get("score", "?") if results and "error" not in results[0] else "?"
+        label = results[0].get("label", "?") if results and "error" not in results[0] else "?"
+        logger.info("🔧 [TOOL] score_lead_conversion → score=%s, label=%s in %.1fms", score, label, elapsed)
+        return json.dumps(results[0] if results else {}, indent=2, default=str)
 
 
 @tool
-def generate_outreach_message(customer_id: int, product_type: str, channel: str = "whatsapp", config: RunnableConfig = None) -> str:
-    """Generate a personalized outreach message for a customer.
-    
-    Creates a contextual, personalized message based on the customer's profile,
-    relationship history, and the target product. Messages are tailored to the
-    communication channel.
+def generate_outreach_message(
+    customer_id: int = None,
+    customer_ids: str = None,
+    product_type: str = None,
+    channel: str = "whatsapp",
+    config: RunnableConfig = None
+) -> str:
+    """Generate a personalized outreach message for one or more customers.
     
     Args:
-        customer_id: The unique customer ID
+        customer_id: The unique customer ID (for single customer lookup)
+        customer_ids: Comma-separated list of customer IDs (e.g. '1, 2, 3') for batch message generation
         product_type: Product to promote (e.g., 'personal_loan')
-        channel: Message channel. Options:
-            - whatsapp (friendly, emoji-friendly, conversational)
-            - email (professional with subject line)
-            - sms (concise, under 160 chars)
+        channel: Message channel. Options: whatsapp, email, sms
     
     Returns:
-        JSON with the generated message and metadata
+        JSON object or list of generated messages
     """
-    logger.info("🔧 [TOOL] generate_outreach_message(customer_id=%d, product_type='%s', channel='%s')",
-                customer_id, product_type, channel)
+    logger.info("🔧 [TOOL] generate_outreach_message(customer_id=%s, customer_ids=%s, product_type='%s', channel='%s')",
+                customer_id, customer_ids, product_type, channel)
     start = time.perf_counter()
     thread_id = config.get("configurable", {}).get("thread_id", "default") if config else "default"
     logger.debug("  Thread ID for RM lookup: %s", thread_id)
@@ -261,20 +374,42 @@ def generate_outreach_message(customer_id: int, product_type: str, channel: str 
                 if user:
                     rm_name = user.full_name
                     logger.info("  Resolved RM name: '%s' from thread %s", rm_name, thread_id)
-                else:
-                    logger.debug("  No user found for thread user_id=%s", thread.user_id)
-            else:
-                logger.debug("  No thread found for id=%s", thread_id)
         except Exception as e:
-            logger.error("  Failed to query user for thread_id %s: %s", thread_id, e, exc_info=True)
+            logger.error("  Failed to query user for thread_id %s: %s", thread_id, e)
         finally:
             db.close()
 
-    result = generate_message(customer_id, product_type, channel, rm_name=rm_name)
+    ids = []
+    if customer_id is not None:
+        ids.append(customer_id)
+    if customer_ids:
+        for part in customer_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+                
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return json.dumps({"error": "No valid customer IDs provided"})
+        
+    results = []
+    for cid in ids:
+        try:
+            res = generate_message(cid, product_type, channel, rm_name=rm_name)
+            results.append(res)
+        except Exception as e:
+            results.append({"customer_id": cid, "product_type": product_type, "channel": channel, "error": f"Failed to generate message: {e}"})
+            
     elapsed = (time.perf_counter() - start) * 1000
-    msg_len = len(result.get("message", "")) if isinstance(result, dict) else 0
-    logger.info("🔧 [TOOL] generate_outreach_message → %d char message in %.1fms", msg_len, elapsed)
-    return json.dumps(result, indent=2, default=str)
+    is_batch = len(ids) > 1 or (customer_ids is not None and "," in customer_ids)
+    
+    if is_batch:
+        logger.info("🔧 [TOOL] generate_outreach_message (batch of %d) finished in %.1fms", len(ids), elapsed)
+        return json.dumps(results, indent=2, default=str)
+    else:
+        msg_len = len(results[0].get("message", "")) if results and "error" not in results[0] else 0
+        logger.info("🔧 [TOOL] generate_outreach_message → %d char message in %.1fms", msg_len, elapsed)
+        return json.dumps(results[0] if results else {}, indent=2, default=str)
 
 
 # Export all tools as a list for the agent

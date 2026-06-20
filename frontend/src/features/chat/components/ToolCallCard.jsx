@@ -1,4 +1,61 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+
+/**
+ * Synthesizes retro sound effects using browser Web Audio API.
+ * Avoids any external audio file assets and respects browser permissions.
+ */
+const playToolSound = (type) => {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext
+    if (!AudioContextClass) return
+    const audioCtx = new AudioContextClass()
+    
+    if (type === 'calling') {
+      // Tech tick/blip when a tool is triggered
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(600, audioCtx.currentTime)
+      osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1)
+      gain.gain.setValueAtTime(0.04, audioCtx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1)
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.start()
+      osc.stop(audioCtx.currentTime + 0.1)
+    } else if (type === 'done') {
+      // Satisfying two-tone rising success chime
+      const now = audioCtx.currentTime
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(523.25, now) // C5
+      osc.frequency.setValueAtTime(783.99, now + 0.08) // G5
+      gain.gain.setValueAtTime(0.06, now)
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25)
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.start()
+      osc.stop(now + 0.25)
+    } else if (type === 'error') {
+      // Low descending buzz when a tool fails
+      const now = audioCtx.currentTime
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = 'sawtooth'
+      osc.frequency.setValueAtTime(160, now)
+      osc.frequency.linearRampToValueAtTime(80, now + 0.25)
+      gain.gain.setValueAtTime(0.06, now)
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25)
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.start()
+      osc.stop(now + 0.25)
+    }
+  } catch (e) {
+    console.debug("Web Audio API blocked or unsupported:", e)
+  }
+}
 
 /**
  * Expandable card showing a tool invocation by the agent.
@@ -7,11 +64,30 @@ import { useState } from 'react'
  * and a Raw JSON tab for debugging.
  */
 export default function ToolCallCard({ toolCall }) {
-  const [expanded, setExpanded] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('visual') // 'visual' | 'json'
   const [copied, setCopied] = useState(false)
 
   const { name, args, status, result } = toolCall
+
+  const hasMountedRef = useRef(false)
+  const lastStatusRef = useRef(status)
+
+  // Trigger sound effect on tool call status transition
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      if (status === 'calling') {
+        playToolSound('calling')
+      }
+      return
+    }
+
+    if (status && status !== lastStatusRef.current) {
+      playToolSound(status)
+      lastStatusRef.current = status
+    }
+  }, [status])
 
   const toolIcons = {
     search_customers: '🔎',
@@ -148,6 +224,17 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   const renderCustomerProfile = (profile) => {
+    if (Array.isArray(profile)) {
+      return (
+        <div className="flex flex-col gap-4">
+          {profile.map((p, idx) => (
+            <div key={p.id || idx}>
+              {renderCustomerProfile(p)}
+            </div>
+          ))}
+        </div>
+      )
+    }
     const existingProducts = profile.existing_products || []
     return (
       <div className="bg-white border-3 border-black rounded-md p-4 shadow-brutal-sm">
@@ -219,6 +306,18 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   const renderCustomerTransactions = (data) => {
+    if (Array.isArray(data)) {
+      return (
+        <div className="flex flex-col gap-6">
+          {data.map((d, idx) => (
+            <div key={idx} className="border-3 border-black p-4 bg-bg-primary rounded-md shadow-brutal-sm">
+              <h4 className="font-display font-black mb-2 text-sm border-b-2 border-black pb-1">TRANSACTION ANALYSIS FOR {d.customer_name?.toUpperCase() || `CUSTOMER #${d.customer_id}`}</h4>
+              {renderCustomerTransactions(d)}
+            </div>
+          ))}
+        </div>
+      )
+    }
     const summary = data.summary || {}
     const transactions = data.transactions || []
     const categories = summary.top_spending_categories || []
@@ -320,6 +419,18 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   const renderCreditScore = (credit) => {
+    if (Array.isArray(credit)) {
+      return (
+        <div className="flex flex-col gap-6">
+          {credit.map((c, idx) => (
+            <div key={idx} className="border-3 border-black p-4 bg-bg-primary rounded-md shadow-brutal-sm">
+              <h4 className="font-display font-black mb-2 text-sm border-b-2 border-black pb-1">CREDIT SCORE FOR {c.customer_name?.toUpperCase() || `CUSTOMER #${c.customer_id}`}</h4>
+              {renderCreditScore(c)}
+            </div>
+          ))}
+        </div>
+      )
+    }
     const score = credit.score || 0
     const percentage = Math.max(0, Math.min(100, ((score - 300) / 550) * 100))
     const rating = credit.rating || 'N/A'
@@ -382,6 +493,18 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   const renderProductEligibility = (eligibility) => {
+    if (Array.isArray(eligibility) && eligibility.length > 0 && (eligibility[0].eligible_products !== undefined || eligibility[0].customer_id !== undefined)) {
+      return (
+        <div className="flex flex-col gap-6">
+          {eligibility.map((e, idx) => (
+            <div key={idx} className="border-3 border-black p-4 bg-bg-primary rounded-md shadow-brutal-sm">
+              <h4 className="font-display font-black mb-2 text-sm border-b-2 border-black pb-1">PRODUCT ELIGIBILITY FOR {e.customer_name?.toUpperCase() || `CUSTOMER #${e.customer_id}`}</h4>
+              {renderProductEligibility(e)}
+            </div>
+          ))}
+        </div>
+      )
+    }
     const products = Array.isArray(eligibility) ? eligibility : (eligibility?.eligible_products || [])
     if (products.length === 0) {
       return <div className="text-center p-4 font-mono text-[12px] text-text-muted">No product eligibility details found.</div>
@@ -432,6 +555,18 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   const renderLeadConversion = (data) => {
+    if (Array.isArray(data)) {
+      return (
+        <div className="flex flex-col gap-6">
+          {data.map((d, idx) => (
+            <div key={idx} className="border-3 border-black p-4 bg-bg-primary rounded-md shadow-brutal-sm">
+              <h4 className="font-display font-black mb-2 text-sm border-b-2 border-black pb-1">CONVERSION SCORE FOR {d.customer_name?.toUpperCase() || `CUSTOMER #${d.customer_id}`}</h4>
+              {renderLeadConversion(d)}
+            </div>
+          ))}
+        </div>
+      )
+    }
     const score = data.score || 0
     const label = data.label || 'N/A'
     const labelClass = label.toLowerCase()
@@ -487,6 +622,18 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   const renderOutreachMessage = (data) => {
+    if (Array.isArray(data)) {
+      return (
+        <div className="flex flex-col gap-6">
+          {data.map((d, idx) => (
+            <div key={idx} className="border-3 border-black p-4 bg-bg-primary rounded-md shadow-brutal-sm">
+              <h4 className="font-display font-black mb-2 text-sm border-b-2 border-black pb-1">OUTREACH MESSAGE FOR {d.customer_name?.toUpperCase() || `CUSTOMER #${d.customer_id}`}</h4>
+              {renderOutreachMessage(d)}
+            </div>
+          ))}
+        </div>
+      )
+    }
     const messageText = data.message || ''
     const channel = data.channel || 'whatsapp'
     const phone = data.customer_phone || ''
@@ -582,80 +729,107 @@ export default function ToolCallCard({ toolCall }) {
   }
 
   return (
-    <div className="border-3 border-black bg-bg-card rounded-md shadow-brutal-sm overflow-hidden transition-transform duration-120 hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-brutal-md">
-      <div className="p-2 px-4 flex items-center gap-2 cursor-pointer bg-bg-secondary select-none hover:bg-accent-cyan hover:text-black" onClick={() => setExpanded(!expanded)}>
-        <span className="text-lg">{icon}</span>
-        <span className="font-mono text-[12.8px] font-bold text-text-primary">{name}</span>
-        <span className={`ml-auto font-mono text-[11.5px] font-bold py-0.5 px-2 border border-black rounded-sm ${
+    <>
+      <div 
+        className={`inline-flex items-center gap-2.5 border-2 border-black bg-bg-card rounded-md py-1 px-3 shadow-[2px_2px_0px_#000000] cursor-pointer transition-[transform,box-shadow] duration-75 hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-[3px_3px_0px_#000000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none ${
+          status === 'calling' ? 'tool-chip-calling' : status === 'done' ? 'tool-chip-done' : status === 'error' ? 'tool-chip-error' : ''
+        }`}
+        onClick={() => setIsModalOpen(true)}
+        title="Click to view tool call details"
+      >
+        <span className="text-[14px] select-none">{icon}</span>
+        <span className="font-mono text-[11.5px] font-bold text-text-primary uppercase tracking-wider">{name}</span>
+        <span className={`font-mono text-[9.5px] font-black py-0.2 px-1 border border-black rounded-sm ${
           status === 'calling' ? 'bg-accent-orange text-black' : status === 'done' ? 'bg-accent-emerald text-black' : 'bg-accent-rose text-black'
         }`}>
-          {status === 'calling' ? '⏳ CALLING...' : status === 'done' ? '✅ DONE' : '❌ ERROR'}
+          {status === 'calling' ? '⏳' : status === 'done' ? '✔' : '✘'}
         </span>
-        <span className={`text-[11.5px] font-bold text-text-primary transition-transform duration-120 ${expanded ? 'rotate-90' : ''}`}>▶</span>
       </div>
 
-      {expanded && (
-        <div className="p-4 border-t-3 border-black bg-bg-primary">
-          {/* Arguments */}
-          <div className="mb-4">
-            <div className="font-mono text-[11px] font-bold uppercase text-text-muted mb-1">PARAMETERS</div>
-            <div className="font-mono text-[12.5px] text-text-primary bg-white p-2 px-4 border-3 border-black rounded-sm max-h-[200px] overflow-y-auto whitespace-pre-wrap">{formatArgs(args)}</div>
-          </div>
+      {isModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div 
+            className="bg-bg-primary border-4 border-black rounded-xl max-w-[850px] w-full max-h-[85vh] overflow-y-auto shadow-brutal-lg flex flex-col p-6 relative animate-[popIn_0.2s_ease-out]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button 
+              className="absolute top-4 right-4 bg-accent-rose text-black border-3 border-black rounded-lg w-9 h-9 flex items-center justify-center font-black font-mono cursor-pointer transition-[transform,box-shadow,background] shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none hover:bg-red-300"
+              onClick={() => setIsModalOpen(false)}
+              title="CLOSE DETAILS"
+            >
+              ✖
+            </button>
 
-          {/* Status/Thinking Message when calling */}
-          {status === 'calling' && (
-            <div className="flex items-center gap-2.5 font-mono text-[12.5px] text-black bg-bg-secondary p-3 px-4 border-3 border-black border-dashed rounded-sm my-2 shadow-[2px_2px_0px_#000]">
-              <span className="inline-block animate-spin mr-1">⏳</span>
-              <span className="font-extrabold uppercase tracking-wide">Executing API request to {name}...</span>
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b-3 border-black">
+              <span className="text-2xl select-none">{icon}</span>
+              <h3 className="font-display text-[18.8px] font-black text-text-primary uppercase tracking-wide">{name}</h3>
+              <span className={`font-mono text-[11px] font-bold py-0.5 px-2 border-2 border-black rounded-md ${
+                status === 'calling' ? 'bg-accent-orange text-black' : status === 'done' ? 'bg-accent-emerald text-black' : 'bg-accent-rose text-black'
+              }`}>
+                {status === 'calling' ? '⏳ CALLING...' : status === 'done' ? '✅ DONE' : '❌ ERROR'}
+              </span>
             </div>
-          )}
 
-          {/* Result */}
-          {result && (
+            {/* Parameters */}
             <div className="mb-4">
-              <div className="flex gap-2 border-b-3 border-black mb-4 pb-0.5">
-                <button
-                  className={`bg-transparent border-none font-sans font-bold text-[12.8px] uppercase py-1.5 px-3 cursor-pointer border-3 border-black border-b-0 rounded-t-sm translate-y-[2px] bg-bg-secondary text-text-primary ${activeTab === 'visual' ? 'bg-accent-yellow text-black! z-10 translate-y-0 shadow-[2px_-2px_0px_#000]' : ''}`}
-                  onClick={() => setActiveTab('visual')}
-                >
-                  📊 VISUAL_SUMMARY
-                </button>
-                <button
-                  className={`bg-transparent border-none font-sans font-bold text-[12.8px] uppercase py-1.5 px-3 cursor-pointer border-3 border-black border-b-0 rounded-t-sm translate-y-[2px] bg-bg-secondary text-text-primary ${activeTab === 'json' ? 'bg-accent-yellow text-black! z-10 translate-y-0 shadow-[2px_-2px_0px_#000]' : ''}`}
-                  onClick={() => setActiveTab('json')}
-                >
-                  💻 RAW_JSON
-                </button>
-              </div>
-
-              <div>
-                {activeTab === 'visual' ? (
-                  <div>
-                    {renderVisualResult(name, result)}
-                  </div>
-                ) : (
-                  <div className="font-mono text-[12.5px] text-text-primary bg-white p-2 px-4 border-3 border-black rounded-sm max-h-[200px] overflow-y-auto whitespace-pre-wrap">
-                    {(() => {
-                      try {
-                        const parsed = typeof result === 'string' ? JSON.parse(result) : result
-                        return JSON.stringify(parsed, null, 2)
-                      } catch {
-                        return typeof result === 'string' ? result : JSON.stringify(result)
-                      }
-                    })()}
-                  </div>
-                )}
-              </div>
+              <div className="font-mono text-[10px] font-bold uppercase text-text-muted mb-1 tracking-wider">PARAMETERS</div>
+              <div className="font-mono text-[12.2px] text-text-primary bg-white p-2.5 px-4 border-3 border-black rounded-md max-h-[150px] overflow-y-auto whitespace-pre-wrap">{formatArgs(args)}</div>
             </div>
-          )}
-        </div>
-      )}
 
-      {!expanded && result && (
-        <div style={{ padding: '4px 16px 8px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          {getResultPreview(result)}
+            {/* Status/Thinking Message when calling */}
+            {status === 'calling' && (
+              <div className="flex items-center gap-2.5 font-mono text-[12.5px] text-black bg-bg-secondary p-3 px-4 border-3 border-black border-dashed rounded-sm my-2 shadow-[2px_2px_0px_#000]">
+                <span className="inline-block animate-spin mr-1">⏳</span>
+                <span className="font-extrabold uppercase tracking-wide">Executing API request to {name}...</span>
+              </div>
+            )}
+
+            {/* Result */}
+            {result && (
+              <div className="mb-2">
+                <div className="flex gap-2 border-b-3 border-black mb-4 pb-0.5">
+                  <button
+                    className={`bg-transparent border-none font-sans font-bold text-[12.8px] uppercase py-1.5 px-3 cursor-pointer border-3 border-black border-b-0 rounded-t-md translate-y-[2px] bg-bg-secondary text-text-primary ${activeTab === 'visual' ? 'bg-accent-yellow text-black! z-10 translate-y-0 shadow-[2px_-2px_0px_#000]' : ''}`}
+                    onClick={() => setActiveTab('visual')}
+                  >
+                    📊 VISUAL_SUMMARY
+                  </button>
+                  <button
+                    className={`bg-transparent border-none font-sans font-bold text-[12.8px] uppercase py-1.5 px-3 cursor-pointer border-3 border-black border-b-0 rounded-t-md translate-y-[2px] bg-bg-secondary text-text-primary ${activeTab === 'json' ? 'bg-accent-yellow text-black! z-10 translate-y-0 shadow-[2px_-2px_0px_#000]' : ''}`}
+                    onClick={() => setActiveTab('json')}
+                  >
+                    💻 RAW_JSON
+                  </button>
+                </div>
+
+                <div>
+                  {activeTab === 'visual' ? (
+                    <div className="max-h-[50vh] overflow-y-auto pr-1">
+                      {renderVisualResult(name, result)}
+                    </div>
+                  ) : (
+                    <div className="font-mono text-[12px] text-text-primary bg-white p-3 px-4 border-3 border-black rounded-md max-h-[50vh] overflow-y-auto whitespace-pre-wrap">
+                      {(() => {
+                        try {
+                          const parsed = typeof result === 'string' ? JSON.parse(result) : result
+                          return JSON.stringify(parsed, null, 2)
+                        } catch {
+                          return typeof result === 'string' ? result : JSON.stringify(result)
+                        }
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
