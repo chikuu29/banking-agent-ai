@@ -6,7 +6,7 @@ import ToolCallCard from './ToolCallCard.jsx'
  * Main chat interface — messages area + input.
  * Renders user messages, agent responses, and tool call cards.
  */
-export default function ChatInterface({ messages, isLoading, connectionStatus, onSendMessage }) {
+export default function ChatInterface({ user, threadId, messages, isLoading, connectionStatus, onSendMessage }) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
@@ -93,24 +93,14 @@ export default function ChatInterface({ messages, isLoading, connectionStatus, o
 
   return (
     <div className="chat-area">
-      {/* Header */}
-      <div className="chat-header">
-        <h2>💬 RM Assistant</h2>
-        <div className="connection-status">
-          <div className={`connection-dot ${connectionStatus}`}></div>
-          {connectionStatus === 'connected' ? 'Connected' :
-           connectionStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
-        </div>
-      </div>
 
       {/* Messages or Welcome */}
       {!hasMessages ? (
         <div className="welcome-screen">
           <div className="welcome-icon">🤖</div>
-          <h2>Banking CRM AI Assistant</h2>
+          <h2>CRM AGENT CONTROL PANEL</h2>
           <p>
-            I help you identify high-potential customers, analyze their profiles,
-            and generate personalized outreach. Try one of these:
+            DECRYPTING PORTFOLIO DATA STREAMS. CHOOSE A RUNTIME SCHEMA TO INITIATE RELATIONSHIP QUERY:
           </p>
           <div className="welcome-suggestions">
             {suggestions.map((s, i) => (
@@ -151,7 +141,7 @@ export default function ChatInterface({ messages, isLoading, connectionStatus, o
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask me about customers, products, or outreach..."
+            placeholder="Message Banking AI Agent..."
             rows={1}
             disabled={connectionStatus !== 'connected'}
           />
@@ -159,7 +149,7 @@ export default function ChatInterface({ messages, isLoading, connectionStatus, o
             className="send-btn"
             onClick={handleSend}
             disabled={!input.trim() || isLoading || connectionStatus !== 'connected'}
-            title="Send message"
+            title="EXECUTE QUERY"
           >
             ➤
           </button>

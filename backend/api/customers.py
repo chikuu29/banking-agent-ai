@@ -11,7 +11,7 @@ from datetime import date
 
 from data.database import get_db
 from data.models import Customer, Interaction
-from api.schemas import CustomerSummary, CustomerProfile, InteractionRecord
+from api.schemas import CustomerSummary, CustomerProfile, InteractionRecord, CustomerCreate
 
 router = APIRouter(prefix="/api/v1/customers", tags=["Customers"])
 
@@ -25,7 +25,7 @@ def list_customers(
     city: str | None = Query(None, description="City filter"),
     has_product: str | None = Query(None, description="Filter customers who own this product type"),
     without_product: str | None = Query(None, description="Filter customers who don't own this product type"),
-    limit: int = Query(20, le=100, description="Max results to return"),
+    limit: int = Query(20, le=1000, description="Max results to return"),
     db: Session = Depends(get_db),
 ):
     """Search and filter customers by various criteria.
@@ -109,4 +109,63 @@ def get_customer_profile(customer_id: int, db: Session = Depends(get_db)):
             for i in recent_interactions
         ],
         account_tenure_years=tenure_years,
+    )
+
+
+@router.post("", response_model=CustomerProfile)
+def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
+    """Create a new banking customer profile."""
+    import datetime
+    
+    new_cust = Customer(
+        name=payload.name,
+        age=payload.age,
+        gender=payload.gender,
+        occupation=payload.occupation,
+        annual_income=payload.annual_income,
+        credit_score=payload.credit_score,
+        relationship_tier=payload.relationship_tier,
+        phone=payload.phone,
+        email=payload.email,
+        city=payload.city,
+        state=payload.state,
+        account_open_date=datetime.date.today(),
+        last_interaction_date=None,
+        assigned_rm_id=payload.assigned_rm_id or "RM001",
+        existing_products=payload.existing_products or [],
+        kyc_status=payload.kyc_status or "verified",
+        average_balance=payload.average_balance or 0.0,
+        total_relationship_value=payload.total_relationship_value or 0.0
+    )
+    
+    db.add(new_cust)
+    try:
+        db.commit()
+        db.refresh(new_cust)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        
+    return CustomerProfile(
+        id=new_cust.id,
+        name=new_cust.name,
+        age=new_cust.age,
+        gender=new_cust.gender,
+        occupation=new_cust.occupation,
+        annual_income=new_cust.annual_income,
+        credit_score=new_cust.credit_score,
+        relationship_tier=new_cust.relationship_tier,
+        phone=new_cust.phone,
+        email=new_cust.email,
+        city=new_cust.city,
+        state=new_cust.state,
+        account_open_date=new_cust.account_open_date,
+        last_interaction_date=None,
+        assigned_rm_id=new_cust.assigned_rm_id,
+        existing_products=new_cust.existing_products or [],
+        kyc_status=new_cust.kyc_status,
+        average_balance=new_cust.average_balance,
+        total_relationship_value=new_cust.total_relationship_value,
+        recent_interactions=[],
+        account_tenure_years=0.0
     )

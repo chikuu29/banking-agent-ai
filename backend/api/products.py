@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from data.database import get_db
 from data.models import Customer, Product
-from api.schemas import ProductInfo, EligibilityResult, ProductEligibilityResponse
+from api.schemas import ProductInfo, EligibilityResult, ProductEligibilityResponse, ProductCreate
 
 router = APIRouter(tags=["Products"])
 
@@ -101,3 +101,29 @@ def check_product_eligibility(customer_id: int, db: Session = Depends(get_db)):
         customer_name=customer.name,
         eligible_products=results,
     )
+
+
+@router.post("/api/v1/products", response_model=ProductInfo)
+def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
+    """Create a new banking product catalog offering."""
+    new_prod = Product(
+        name=payload.name,
+        type=payload.type,
+        min_income=payload.min_income or 0.0,
+        min_credit_score=payload.min_credit_score or 0,
+        interest_rate=payload.interest_rate,
+        description=payload.description,
+        features=payload.features or [],
+        max_amount=payload.max_amount,
+        tenure_months=payload.tenure_months
+    )
+    
+    db.add(new_prod)
+    try:
+        db.commit()
+        db.refresh(new_prod)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        
+    return new_prod

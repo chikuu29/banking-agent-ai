@@ -169,3 +169,35 @@ class InteractionRecord(BaseModel):
 
 # Rebuild models to resolve forward refs
 CustomerProfile.model_rebuild()
+
+
+class CustomerCreate(BaseModel):
+    name: str
+    age: int
+    gender: str
+    occupation: str
+    annual_income: float
+    credit_score: int
+    relationship_tier: str
+    phone: str
+    email: str
+    city: str
+    state: str
+    assigned_rm_id: Optional[str] = "RM001"
+    existing_products: list[str] = []
+    average_balance: float = 0.0
+    total_relationship_value: float = 0.0
+    kyc_status: Optional[str] = "verified"
+
+
+class ProductCreate(BaseModel):
+    name: str
+    type: str
+    min_income: float = 0.0
+    min_credit_score: int = 0
+    interest_rate: Optional[float] = None
+    description: str
+    features: list[str] = []
+    max_amount: Optional[float] = None
+    tenure_months: Optional[int] = None
+

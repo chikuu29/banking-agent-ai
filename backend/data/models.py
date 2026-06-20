@@ -155,3 +155,49 @@ class Interaction(Base):
 
     # Relationships
     customer = relationship("Customer", back_populates="interactions")
+
+
+class User(Base):
+    """Represents a Relationship Manager (RM) who can log in."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(100), nullable=False)
+    full_name = Column(String(100), nullable=False)
+    email = Column(String(100), nullable=True)
+    role = Column(String(50), default="Relationship Manager")
+    assigned_rm_id = Column(String(15), default="RM001")
+
+    # Relationships
+    chat_threads = relationship("ChatThread", back_populates="user", cascade="all, delete-orphan")
+
+
+class ChatThread(Base):
+    """Represents a conversation thread (recent chat) for an RM."""
+    __tablename__ = "chat_threads"
+
+    id = Column(String(36), primary_key=True)  # UUID string
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(200), default="New Conversation")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="chat_threads")
+
+
+class ExecutionLog(Base):
+    """Logs the agent execution steps and token consumption."""
+    __tablename__ = "execution_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    thread_id = Column(String(36), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    query = Column(Text, nullable=False)
+    execution_flow = Column(JSON, nullable=False)  # list of tool calls and notes
+    token_count_input = Column(Integer, default=0)
+    token_count_output = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+

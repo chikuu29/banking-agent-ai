@@ -10,9 +10,14 @@ import re
 from typing import AsyncGenerator, Dict, Any, List
 
 class MockAIMessage:
-    def __init__(self, content="", tool_calls=None):
+    def __init__(self, content="", tool_calls=None, usage_metadata=None):
         self.content = content
         self.tool_calls = tool_calls or []
+        self.usage_metadata = usage_metadata or {
+            "input_tokens": 120 + len(content) // 6 + (200 if tool_calls else 0),
+            "output_tokens": 30 + len(content) // 6 + (50 if tool_calls else 0),
+            "total_tokens": 150 + len(content) // 3 + (250 if tool_calls else 0)
+        }
 
 class MockToolMessage:
     def __init__(self, name, content):
@@ -88,7 +93,11 @@ class MockAgent:
                             "id": tc.get("id") or f"call_{tc.get('name')}_{len(state_msgs)}"
                         })
                 # Check if we should append
-                state_msgs.append(AIMessage(content=msg.content, tool_calls=tool_calls))
+                state_msgs.append(AIMessage(
+                    content=msg.content, 
+                    tool_calls=tool_calls, 
+                    usage_metadata=getattr(msg, "usage_metadata", None)
+                ))
                 
         elif "tools" in event:
             tools_data = event["tools"]
@@ -136,6 +145,26 @@ class MockAgent:
             yield {"agent": {"messages": [MockAIMessage(content="Hello! How can I assist you today?")]}}
             return
 
+        # Resolve RM Name and RM ID from DB
+        thread_id = config.get("configurable", {}).get("thread_id", "default") if config else "default"
+        rm_name = "Relationship Manager"
+        rm_id = "RM001"
+        if thread_id and thread_id != "default":
+            from data.database import SessionLocal
+            from data.models import User, ChatThread
+            db = SessionLocal()
+            try:
+                thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
+                if thread:
+                    user = db.query(User).filter(User.id == thread.user_id).first()
+                    if user:
+                        rm_name = user.full_name
+                        rm_id = user.assigned_rm_id
+            except Exception as e:
+                print(f"[ERROR] MockAgent failed to query RM: {e}")
+            finally:
+                db.close()
+
         # Get last user message
         user_msg = messages[-1]
         user_message_text = user_msg[1] if isinstance(user_msg, tuple) else getattr(user_msg, "content", str(user_msg))
@@ -146,13 +175,13 @@ class MockAgent:
         
         if match_id:
             customer_id = int(match_id.group(1))
-            async for event in self._stream_customer_analysis(customer_id):
+            async for event in self._stream_customer_analysis(customer_id, rm_name, rm_id):
                 yield event
             return
 
         # Check for Use Case 1: Personal Loan Campaign
         if "personal loan" in user_message_text_lower or "loan" in user_message_text_lower:
-            async for event in self._stream_personal_loan_campaign():
+            async for event in self._stream_personal_loan_campaign(rm_name, rm_id):
                 yield event
             return
 
@@ -160,7 +189,7 @@ class MockAgent:
         if "credit card" in user_message_text_lower or "card" in user_message_text_lower:
             tier = "Gold" if "gold" in user_message_text_lower else None
             city = "Mumbai" if "mumbai" in user_message_text_lower else None
-            async for event in self._stream_credit_card_campaign(tier=tier, city=city):
+            async for event in self._stream_credit_card_campaign(rm_name, rm_id, tier=tier, city=city):
                 yield event
             return
 
@@ -183,7 +212,7 @@ class MockAgent:
         finally:
             loop.close()
 
-    async def _stream_personal_loan_campaign(self) -> AsyncGenerator[Dict[str, Any], None]:
+    async def _stream_personal_loan_campaign(self, rm_name: str = "Relationship Manager", rm_id: str = "RM001") -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate the multi-step reasoning and tool call flow for loan campaign."""
         # 1. search_customers
         yield {
@@ -297,7 +326,7 @@ class MockAgent:
             summary_md += f"- **Proposed WhatsApp Message**:\n"
             summary_md += f"  ```text\n  {tc['message']}\n  ```\n\n"
 
-        summary_md += "\n*Note: These recommendations are based on income eligibility, credit history, and recent account activity.*"
+        summary_md += f"\n*Note: These recommendations are prepared by {rm_name} ({rm_id}) based on income eligibility, credit history, and recent account activity.*"
 
         yield {
             "agent": {
@@ -307,7 +336,7 @@ class MockAgent:
             }
         }
 
-    async def _stream_customer_analysis(self, customer_id: int) -> AsyncGenerator[Dict[str, Any], None]:
+    async def _stream_customer_analysis(self, customer_id: int, rm_name: str = "Relationship Manager", rm_id: str = "RM001") -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate deep-dive analysis for a single customer ID."""
         # 1. get_customer_profile
         yield {
@@ -421,7 +450,7 @@ class MockAgent:
         summary_md += f"- **Occupation**: {profile.get('occupation')}\n"
         summary_md += f"- **City/State**: {profile.get('city')}, {profile.get('state')}\n"
         summary_md += f"- **Relationship Tier**: `{profile.get('relationship_tier')}` (Tenure: {profile.get('account_tenure_years')} years)\n"
-        summary_md += f"- **Assigned RM ID**: {profile.get('assigned_rm_id')}\n"
+        summary_md += f"- **Assigned RM ID**: {profile.get('assigned_rm_id')} (Analyzed by: {rm_name})\n"
         summary_md += f"- **Existing Products**: " + ", ".join([p.replace('_', ' ').title() for p in profile.get('existing_products', [])]) + "\n\n"
 
         summary_md += "#### 💵 Financial Health & Spend Analysis\n"
@@ -453,7 +482,7 @@ class MockAgent:
             }
         }
 
-    async def _stream_credit_card_campaign(self, tier: str = None, city: str = None) -> AsyncGenerator[Dict[str, Any], None]:
+    async def _stream_credit_card_campaign(self, rm_name: str = "Relationship Manager", rm_id: str = "RM001", tier: str = None, city: str = None) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate credit card campaign for Gold tier in Mumbai."""
         tier_val = tier or "Gold"
         city_val = city or "Mumbai"
@@ -572,6 +601,8 @@ class MockAgent:
             summary_md += f"- **Income**: ₹{tc['income']:,.0f} | **Conversion Probability**: **{tc['score']}/100** (`{tc['label']}`)\n"
             summary_md += f"- **Proposed WhatsApp Outreach**:\n"
             summary_md += f"  ```text\n  {tc['message']}\n  ```\n\n"
+
+        summary_md += f"\n*Signed off by: {rm_name} ({rm_id})*"
 
         yield {
             "agent": {

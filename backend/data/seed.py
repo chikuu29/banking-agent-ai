@@ -8,13 +8,18 @@ import random
 from datetime import date, timedelta
 from faker import Faker
 
-from data.models import Customer, Transaction, Product, Interaction, Base
+import hashlib
+from data.models import Customer, Transaction, Product, Interaction, Base, User
 from data.database import engine, SessionLocal
 from config import NUM_CUSTOMERS, RANDOM_SEED
 
 fake = Faker("en_IN")
 Faker.seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
 
 # --- Constants for realistic data ---
 
@@ -356,6 +361,37 @@ def seed_database():
             session.add(Product(**p))
         session.flush()
 
+        # --- Seed Users ---
+        print("  [+] Creating Relationship Manager users...")
+        users = [
+            User(
+                username="suryanarayan",
+                password_hash=hash_password("password"),
+                full_name="Suryanarayan Biswal",
+                email="cchiku1999@gmail.com",
+                role="Relationship Manager",
+                assigned_rm_id="RM001"
+            ),
+            User(
+                username="rm001",
+                password_hash=hash_password("password"),
+                full_name="Siddharth Sharma",
+                email="rm001@bank.com",
+                role="Relationship Manager",
+                assigned_rm_id="RM001"
+            ),
+            User(
+                username="rm002",
+                password_hash=hash_password("password"),
+                full_name="Priyanka Verma",
+                email="rm002@bank.com",
+                role="Relationship Manager",
+                assigned_rm_id="RM002"
+            )
+        ]
+        session.add_all(users)
+        session.flush()
+
         # --- Seed Customers ---
         print(f"  [+] Creating {NUM_CUSTOMERS} customers...")
         for i in range(1, NUM_CUSTOMERS + 1):
@@ -433,8 +469,10 @@ def seed_database():
         txn_count = session.query(Transaction).count()
         interaction_count = session.query(Interaction).count()
         product_count = session.query(Product).count()
+        user_count = session.query(User).count()
 
         print(f"\n[OK] Database seeded successfully!")
+        print(f"   {user_count} users")
         print(f"   {customer_count} customers")
         print(f"   {txn_count} transactions")
         print(f"   {interaction_count} interactions")

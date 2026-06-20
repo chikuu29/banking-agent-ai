@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 /**
  * Message bubble component — renders user and assistant messages.
@@ -22,12 +23,15 @@ export default function MessageBubble({ message }) {
 
   return (
     <div className={`message ${type}`}>
-      <div className="message-label">
-        {type === 'user' ? 'You' : 'AI Assistant'}
+      <div className="message-header">
+        <span className="avatar-icon">{type === 'user' ? '🧑‍💻' : '🤖'}</span>
+        <span className="message-label">
+          {type === 'user' ? 'USER' : 'AGENT'}
+        </span>
       </div>
       <div className="message-bubble">
         {type === 'assistant' ? (
-          <ReactMarkdown>{contentString}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentString}</ReactMarkdown>
         ) : (
           contentString
         )}
@@ -35,3 +39,4 @@ export default function MessageBubble({ message }) {
     </div>
   )
 }
+

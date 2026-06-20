@@ -1,122 +1,82 @@
-import { useState, useEffect } from 'react'
-
 /**
- * Sidebar with branding, quick actions, and portfolio stats.
+ * Sidebar with RM profile, quick actions, and recent chat threads.
  */
-export default function Sidebar({ onSendMessage, onNewChat, theme, onToggleTheme }) {
-  const [stats, setStats] = useState(null)
+export default function Sidebar({ 
+  user,
+  threads,
+  currentThreadId,
+  onSelectThread,
+  onDeleteThread,
+  onSendMessage, 
+  onNewChat, 
+  onLogout,
+  currentPath,
+  onNavigate
+}) {
 
-  // Fetch stats on mount
-  useEffect(() => {
-    fetch('/api/v1/health')
-      .then(res => res.json())
-      .then(data => setStats(data))
-      .catch(() => setStats(null))
-  }, [])
 
-  const quickActions = [
-    {
-      emoji: '🎯',
-      title: 'High-Value Personal Loan Leads',
-      text: 'Find top customers for personal loan conversion',
-      message: 'Find high-value customers likely to convert for a personal loan this month and generate personalized WhatsApp messages for the top 3 candidates.',
-    },
-    {
-      emoji: '👤',
-      title: 'Deep Customer Analysis',
-      text: 'Full profile with spending & product fit',
-      message: 'Show me a detailed analysis of customer ID 5 — including their spending patterns, credit score, and which products they should be offered.',
-    },
-    {
-      emoji: '📢',
-      title: 'Credit Card Campaign',
-      text: 'Target Gold tier for credit card upgrades',
-      message: 'Which Gold tier customers in Mumbai should I target for credit card upgrades? Score their conversion likelihood and generate outreach messages.',
-    },
-  ]
+
+
 
   return (
     <aside className="sidebar">
-      {/* Header */}
-      <div className="sidebar-header">
-        <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">🏦</div>
-          <div>
-            <h1>BankingCRM AI</h1>
-            <p>RM Intelligence Assistant</p>
-          </div>
+      {/* RM Profile Header */}
+      <div className="rm-profile-header">
+        <div className="rm-avatar">🕶️</div>
+        <div className="rm-info">
+          <div className="rm-name" title={user.full_name}>{user.full_name}</div>
+          <div className="rm-role">{user.role} • <code>{user.assigned_rm_id}</code></div>
         </div>
+        <button className="logout-btn" onClick={onLogout} title="DISCONNECT SESSION">
+          🔌
+        </button>
       </div>
 
       <div className="sidebar-content">
-        {/* New Chat */}
-        <div className="sidebar-section">
+        {/* New Chat Button */}
+        <div className="sidebar-section" style={{ padding: '4px 0 12px' }}>
           <button className="new-chat-btn" onClick={onNewChat}>
-            <span>✨</span> New Conversation
+            <span>⚡</span> NEW SESSION
           </button>
         </div>
 
-        {/* Quick Actions */}
+        {/* Recent Conversations */}
         <div className="sidebar-section">
-          <div className="sidebar-section-title">Quick Actions</div>
-          {quickActions.map((action, i) => (
-            <button
-              key={i}
-              className="quick-action-btn"
-              onClick={() => onSendMessage(action.message)}
-            >
-              <span className="action-emoji">{action.emoji}</span>
-              {action.title}
-              <span className="action-text">{action.text}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Stats */}
-        {stats && (
-          <div className="sidebar-section">
-            <div className="sidebar-section-title">Portfolio Overview</div>
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-value">{stats.customers}</div>
-                <div className="stat-label">Customers</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value">7</div>
-                <div className="stat-label">AI Tools</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value">8</div>
-                <div className="stat-label">Products</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value">6</div>
-                <div className="stat-label">REST APIs</div>
-              </div>
-            </div>
+          <div className="sidebar-section-title">
+            <span>📁</span> ACTIVE_THREADS
           </div>
-        )}
-
-        {/* API Info */}
-        <div className="sidebar-section">
-          <div className="sidebar-section-title">Mock APIs</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', lineHeight: 1.8 }}>
-            <div>GET /api/v1/customers</div>
-            <div>GET /api/v1/customers/:id</div>
-            <div>GET /api/v1/customers/:id/transactions</div>
-            <div>GET /api/v1/customers/:id/credit-score</div>
-            <div>GET /api/v1/products</div>
-            <div>GET /api/v1/customers/:id/product-eligibility</div>
+          <div className="threads-list">
+            {threads.length > 0 ? (
+              threads.map(t => (
+                <div 
+                  key={t.id} 
+                  className={`thread-item ${currentThreadId === t.id ? 'active' : ''}`}
+                  onClick={() => onSelectThread(t.id)}
+                >
+                  <span className="thread-icon">🤖</span>
+                  <span className="thread-title" title={t.title}>{t.title}</span>
+                  <button 
+                    className="delete-thread-btn" 
+                    onClick={(e) => { e.stopPropagation(); onDeleteThread(t.id); }}
+                    title="TERMINATE THREAD"
+                  >
+                    ✖
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="no-threads">No active threads. Start typing below!</div>
+            )}
           </div>
         </div>
+
+
+
+
+
+
       </div>
 
-      {/* Theme Toggle Footer */}
-      <div className="sidebar-footer">
-        <button className="theme-toggle-btn" onClick={onToggleTheme}>
-          {theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
-        </button>
-      </div>
     </aside>
   )
 }

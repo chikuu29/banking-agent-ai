@@ -8,10 +8,13 @@ real API calls that are logged and traceable.
 import json
 import httpx
 from langchain_core.tools import tool
+from langchain_core.runnables import RunnableConfig
 
 from config import API_BASE_URL
 from agent.scoring import score_customer
 from agent.message_generator import generate_message
+from data.database import SessionLocal
+from data.models import User, ChatThread
 
 
 # --- HTTP Client ---
@@ -170,7 +173,7 @@ def score_lead_conversion(customer_id: int, product_type: str) -> str:
 
 
 @tool
-def generate_outreach_message(customer_id: int, product_type: str, channel: str = "whatsapp") -> str:
+def generate_outreach_message(customer_id: int, product_type: str, channel: str = "whatsapp", config: RunnableConfig = None) -> str:
     """Generate a personalized outreach message for a customer.
     
     Creates a contextual, personalized message based on the customer's profile,
@@ -188,7 +191,23 @@ def generate_outreach_message(customer_id: int, product_type: str, channel: str 
     Returns:
         JSON with the generated message and metadata
     """
-    result = generate_message(customer_id, product_type, channel)
+    thread_id = config.get("configurable", {}).get("thread_id", "default") if config else "default"
+    
+    rm_name = None
+    if thread_id and thread_id != "default":
+        db = SessionLocal()
+        try:
+            thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
+            if thread:
+                user = db.query(User).filter(User.id == thread.user_id).first()
+                if user:
+                    rm_name = user.full_name
+        except Exception as e:
+            print(f"[ERROR] Failed to query user for thread_id {thread_id}: {e}")
+        finally:
+            db.close()
+
+    result = generate_message(customer_id, product_type, channel, rm_name=rm_name)
     return json.dumps(result, indent=2, default=str)
 
 

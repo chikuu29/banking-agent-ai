@@ -20,7 +20,7 @@ def _get_llm():
     )
 
 
-def generate_message(customer_id: int, product_type: str, channel: str = "whatsapp") -> dict:
+def generate_message(customer_id: int, product_type: str, channel: str = "whatsapp", rm_name: str = None) -> dict:
     """Generate a personalized outreach message for a customer.
     
     Args:
@@ -44,6 +44,7 @@ def generate_message(customer_id: int, product_type: str, channel: str = "whatsa
             "occupation": customer.occupation,
             "city": customer.city,
             "tier": customer.relationship_tier,
+            "phone": customer.phone,
             "income_bracket": (
                 "premium" if customer.annual_income >= 2000000
                 else "high" if customer.annual_income >= 1000000
@@ -107,7 +108,7 @@ Additional Guidelines:
 - Mention a specific benefit relevant to their profile
 - Include urgency without being pushy
 - DO NOT include placeholder brackets like [X%] — use realistic sample values
-- Sign off as the Relationship Manager
+- {f"Sign off as the Relationship Manager, {rm_name}" if rm_name else "Sign off as the Relationship Manager"}
 
 Generate ONLY the message text, nothing else."""
 
@@ -119,6 +120,7 @@ Generate ONLY the message text, nothing else."""
         result = {
             "customer_id": customer_id,
             "customer_name": context["name"],
+            "customer_phone": context["phone"],
             "product_type": product_type,
             "channel": channel,
             "message": message_text,
@@ -135,43 +137,45 @@ Generate ONLY the message text, nothing else."""
 
     except Exception as e:
         # Fallback template-based message if LLM fails
-        return _fallback_message(context, product_display, channel)
+        return _fallback_message(context, product_display, channel, rm_name)
 
 
-def _fallback_message(context: dict, product_display: str, channel: str) -> dict:
+def _fallback_message(context: dict, product_display: str, channel: str, rm_name: str = None) -> dict:
     """Generate a template-based fallback message if LLM is unavailable."""
     first_name = context["first_name"]
+    rm_signoff = f", {rm_name}" if rm_name else ""
 
     if channel == "whatsapp":
         message = (
             f"Hi {first_name}! 👋\n\n"
-            f"As your dedicated Relationship Manager, I wanted to reach out with an "
+            f"As your dedicated Relationship Manager{rm_signoff}, I wanted to reach out with an "
             f"exclusive {product_display} offer tailored for our {context['tier']} customers.\n\n"
             f"Based on your profile, you're pre-approved for attractive rates. "
             f"Would you like me to share the details?\n\n"
             f"Feel free to reply or call me at your convenience. 😊\n\n"
-            f"Best regards,\nYour Relationship Manager"
+            f"Best regards,\n{rm_name if rm_name else 'Your Relationship Manager'}"
         )
     elif channel == "email":
         message = (
             f"Dear {first_name},\n\n"
-            f"I hope this email finds you well. As your dedicated Relationship Manager, "
+            f"I hope this email finds you well. As your dedicated Relationship Manager{rm_signoff}, "
             f"I'm pleased to inform you about an exclusive {product_display} offer "
             f"available to our valued {context['tier']} customers.\n\n"
             f"Given your excellent banking relationship with us over the past "
             f"{context['tenure_years']} years, you are eligible for preferential terms.\n\n"
             f"I would be happy to discuss this further at your convenience.\n\n"
-            f"Warm regards,\nYour Relationship Manager"
+            f"Warm regards,\n{rm_name if rm_name else 'Your Relationship Manager'}"
         )
     else:  # SMS
         message = (
             f"{first_name}, exclusive {product_display} offer for {context['tier']} customers. "
-            f"Pre-approved rates available. Call your RM for details."
+            f"Pre-approved rates available. Call your RM {rm_name if rm_name else ''} for details."
         )
 
     return {
         "customer_id": None,
         "customer_name": context["name"],
+        "customer_phone": context.get("phone"),
         "product_type": product_display,
         "channel": channel,
         "message": message,
