@@ -8,6 +8,74 @@ Built with **LangGraph** (ReAct Agent) + **FastAPI** (Mock Banking APIs) + **Rea
 
 ## 🏗️ Architecture
 
+> [!IMPORTANT]
+> A detailed system analysis report is available in [architecture_and_analysis.md](architecture_and_analysis.md), which includes deep-dives into execution flow, batch processing optimizations, design trade-offs, and Mermaid sequence diagrams.
+
+### Component Relationship
+
+```mermaid
+graph TD
+    subgraph Frontend ["React Client (Vite)"]
+        UI["Neo-Brutalist Chat UI"]
+        WSClient["WebSocket Client (useChat.js)"]
+        Telemetry["System Logs Console (App.jsx)"]
+        AudioCtx["Web Audio API Sound Engine"]
+        VisualTools["ToolCallCard Custom Visualizers"]
+    end
+
+    subgraph Backend ["FastAPI Backend"]
+        WSServer["WebSocket Server (/api/v1/chat)"]
+        APIRouters["Mock REST APIs (/api/v1/...)"]
+        
+        subgraph AgentEngine ["LangGraph ReAct Agent Engine"]
+            Graph["LangGraph Compiled Agent"]
+            LLMFactory["LLM Factory (llm_factory.py)"]
+            Checkpointer["MemorySaver (State Persistence)"]
+            AgentTools["Agent Tools (tools.py)"]
+            ScoringEngine["Heuristic Scoring Engine (scoring.py)"]
+            OutreachGen["Outreach Message Generator (message_generator.py)"]
+            MockFallback["Resilient MockAgent (mock_agent.py)"]
+        end
+
+        subgraph Storage ["Database & ORM"]
+            ORM["SQLAlchemy ORM"]
+            DB[("SQLite Database (banking_crm.db)")]
+        end
+    end
+
+    subgraph Providers ["AI Models"]
+        Gemini["Google Gemini"]
+        DeepSeek["DeepSeek Chat"]
+    end
+
+    UI <--> WSClient
+    WSClient <-->|Real-Time WebSockets| WSServer
+    Telemetry <-->|HTTP Polling Logs| APIRouters
+    WSClient -->|Triggers Cues| AudioCtx
+    WSClient -->|Feeds Data| VisualTools
+
+    WSServer <--> Graph
+    Graph --> Checkpointer
+    Graph --> LLMFactory
+    Graph --> AgentTools
+    
+    LLMFactory --> Gemini
+    LLMFactory --> DeepSeek
+    
+    AgentTools -->|Local HTTP REST Requests| APIRouters
+    AgentTools -.->|Executes Rules| ScoringEngine
+    AgentTools -.->|Generates Content| OutreachGen
+    OutreachGen --> LLMFactory
+
+    APIRouters --> ORM
+    ORM --> DB
+    
+    Graph -.->|LLM Init Fails| MockFallback
+    MockFallback --> AgentTools
+```
+
+### High-level Flow Diagram
+
 ```
 ┌──────────────────┐     WebSocket      ┌─────────────────────────────────────┐
 │                  │◄──────────────────►│           FastAPI Backend            │
