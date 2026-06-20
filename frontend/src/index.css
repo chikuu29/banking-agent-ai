@@ -1546,8 +1546,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   width: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background-color: var(--bg-primary);
   background-image: 
     radial-gradient(var(--border-subtle) 1px, transparent 1px);
@@ -3707,6 +3710,31 @@ body {
   .nav-tab {
     font-size: 0.65rem;
     padding: 4px 8px;
+  }
+
+  /* Compact Auth Screen Styles */
+  .auth-container {
+    padding: var(--space-sm);
+  }
+
+  .auth-card {
+    padding: var(--space-md) var(--space-sm);
+  }
+
+  .auth-card h2 {
+    font-size: 1.2rem;
+  }
+
+  .auth-logo-icon {
+    width: 45px;
+    height: 45px;
+    font-size: 1.3rem;
+    margin-bottom: var(--space-sm);
+  }
+
+  .auth-subtitle {
+    font-size: 0.75rem;
+    margin-bottom: var(--space-md);
   }
 }
 
