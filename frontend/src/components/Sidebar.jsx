@@ -11,7 +11,9 @@ export default function Sidebar({
   onNewChat, 
   onLogout,
   currentPath,
-  onNavigate
+  onNavigate,
+  isOpen,
+  onClose
 }) {
 
 
@@ -19,7 +21,7 @@ export default function Sidebar({
 
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       {/* RM Profile Header */}
       <div className="rm-profile-header">
         <div className="rm-avatar">🕶️</div>
@@ -29,6 +31,9 @@ export default function Sidebar({
         </div>
         <button className="logout-btn" onClick={onLogout} title="DISCONNECT SESSION">
           🔌
+        </button>
+        <button className="close-sidebar-btn" onClick={onClose} title="CLOSE MENU">
+          ✖
         </button>
       </div>
 

@@ -225,6 +225,9 @@ export default function App() {
   // Logout confirmation modal state
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   
+  // Sidebar state for mobile layout
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  
   // Fullscreen and System Logs State
   const [isFullScreen, setIsFullScreen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
@@ -321,24 +324,37 @@ export default function App() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+      )}
       <Sidebar 
         user={user}
         threads={threads}
         currentThreadId={threadId}
-        onSelectThread={(tId) => { setThreadId(tId); navigate('/v1/agent/ask'); }}
+        onSelectThread={(tId) => { setThreadId(tId); navigate('/v1/agent/ask'); setSidebarOpen(false); }}
         onDeleteThread={deleteThread}
-        onSendMessage={sendMessage} 
-        onNewChat={() => { newChat(); navigate('/v1/agent/ask'); }} 
+        onSendMessage={(msg) => { sendMessage(msg); setSidebarOpen(false); }} 
+        onNewChat={() => { newChat(); navigate('/v1/agent/ask'); setSidebarOpen(false); }} 
         onLogout={handleLogout}
         currentPath={currentPath}
-        onNavigate={navigate}
+        onNavigate={(path) => { navigate(path); setSidebarOpen(false); }}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       
       <div className="main-content-pane">
         {/* Unified Top Navbar / Dataview & Controls */}
         <div className="dataview-navbar">
           <div className="nav-tabs-wrapper">
+            <button 
+              id="sidebar-toggle-btn"
+              className="sidebar-toggle-btn"
+              onClick={() => setSidebarOpen(true)}
+              title="OPEN SIDEBAR MENU"
+            >
+              ☰
+            </button>
             <button 
               className={`nav-tab ${currentView === 'chat' ? 'active' : ''}`} 
               onClick={() => navigate('/v1/agent/ask')}
@@ -390,7 +406,7 @@ export default function App() {
                 borderRadius: 'var(--radius-sm)'
               }}
             >
-              📟 VIEW_LOGS
+              📟 <span className="btn-label">VIEW_LOGS</span>
             </button>
             <button 
               type="button"
@@ -410,12 +426,14 @@ export default function App() {
                 borderRadius: 'var(--radius-sm)'
               }}
             >
-              🖥️ {isFullScreen ? 'EXIT_FULLSCREEN' : 'GO_FULLSCREEN'}
+              🖥️ <span className="btn-label">{isFullScreen ? 'EXIT_FULLSCREEN' : 'GO_FULLSCREEN'}</span>
             </button>
             <div className="connection-status">
               <div className={`connection-dot ${connectionStatus}`}></div>
-              {connectionStatus === 'connected' ? 'SYS_STATUS: ONLINE' :
-               connectionStatus === 'connecting' ? 'SYS_STATUS: CONNECTING...' : 'SYS_STATUS: OFFLINE'}
+              <span className="status-text">
+                {connectionStatus === 'connected' ? 'SYS_STATUS: ONLINE' :
+                 connectionStatus === 'connecting' ? 'SYS_STATUS: CONNECTING...' : 'SYS_STATUS: OFFLINE'}
+              </span>
             </div>
           </div>
         </div>

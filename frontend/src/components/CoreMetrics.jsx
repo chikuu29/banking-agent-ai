@@ -286,7 +286,7 @@ export default function CoreMetrics({ activeTab, onSelectTab, user }) {
     <div className="metrics-panel">
       {/* Sub-panels based on active tab */}
       {activeTab === 'customers' && (
-        <div className="customers-workspace">
+        <div className={`customers-workspace ${selectedCustomerId ? 'customer-selected' : ''}`}>
           {/* Left panel: List with filters */}
           <div className="customers-list-panel">
             <div className="panel-header-brutalist">
@@ -377,6 +377,17 @@ export default function CoreMetrics({ activeTab, onSelectTab, user }) {
 
           {/* Right panel: Detail Customer 360 View */}
           <div className="customer-detail-panel">
+            {selectedCustomerId && (
+              <div className="mobile-detail-header-bar">
+                <button 
+                  className="back-to-list-btn" 
+                  onClick={() => setSelectedCustomerId(null)}
+                  title="BACK TO DIRECTORY"
+                >
+                  ⬅ BACK TO DIRECTORY
+                </button>
+              </div>
+            )}
             {selectedCustomerId ? (
               loadingProfileDetail ? (
                 <div className="loading-state-details">
