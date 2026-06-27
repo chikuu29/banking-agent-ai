@@ -26,3 +26,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./banking_crm.db")
 # --- Seed Data Configuration ---
 NUM_CUSTOMERS = int(os.getenv("NUM_CUSTOMERS", "150"))
 RANDOM_SEED = 42  # For reproducible synthetic data
+
+# --- RAG / Knowledge Base Configuration ---
+KNOWLEDGE_BASE_DIR = os.getenv("KNOWLEDGE_BASE_DIR", "./knowledge_base")
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "models/text-embedding-004")
+RAG_CHUNK_SIZE = int(os.getenv("RAG_CHUNK_SIZE", "1000"))
+RAG_CHUNK_OVERLAP = int(os.getenv("RAG_CHUNK_OVERLAP", "200"))
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))

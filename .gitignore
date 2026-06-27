@@ -21,6 +21,9 @@ env/
 *.db
 *.sqlite3
 
+# Vector Store (ChromaDB)
+backend/chroma_db/
+
 # IDE
 .vscode/
 .idea/

@@ -412,6 +412,45 @@ def generate_outreach_message(
         return json.dumps(results[0] if results else {}, indent=2, default=str)
 
 
+@tool
+def query_knowledge_base(
+    query: str,
+    category: str = None,
+    top_k: int = 5,
+) -> str:
+    """Search the banking knowledge base for regulatory rules, product details,
+    and eligibility criteria from external knowledge sources.
+
+    Use this tool when you need information that is NOT in the customer database, such as:
+    - RBI regulations, compliance rules, and lending restrictions
+    - Detailed product specifications (interest rates, fees, hidden conditions, benefits)
+    - Eligibility criteria for specific financial products (age, income, credit score requirements)
+    - Special offers, festival deals, or exception policies
+    - NRI rules, senior citizen benefits, or government employee schemes
+
+    Do NOT use this tool for customer-specific data (use search_customers, get_customer_profile, etc. instead).
+    This tool searches the bank's regulatory and product knowledge base, not customer records.
+
+    Args:
+        query: The search query describing what information you need (be specific and descriptive)
+        category: Optional filter to narrow results — 'rbi_rules', 'product_catalog', 'eligibility', 'special_offers'
+        top_k: Number of relevant results to return (default 5)
+
+    Returns:
+        JSON array of relevant knowledge chunks with source references and relevance scores
+    """
+    logger.info("🔧 [TOOL] query_knowledge_base(query='%s', category=%s, top_k=%d)",
+                query[:80], category, top_k)
+    start = time.perf_counter()
+
+    from rag.retriever import query_knowledge
+    results = query_knowledge(query, top_k=top_k, category=category)
+
+    elapsed = (time.perf_counter() - start) * 1000
+    logger.info("🔧 [TOOL] query_knowledge_base → %d results in %.1fms", len(results), elapsed)
+    return json.dumps(results, indent=2, ensure_ascii=False)
+
+
 # Export all tools as a list for the agent
 ALL_TOOLS = [
     search_customers,
@@ -421,6 +460,7 @@ ALL_TOOLS = [
     check_product_eligibility,
     score_lead_conversion,
     generate_outreach_message,
+    query_knowledge_base,
 ]
 
 logger.info("Registered %d agent tools: %s", len(ALL_TOOLS), [t.name for t in ALL_TOOLS])

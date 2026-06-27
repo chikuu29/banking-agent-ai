@@ -39,7 +39,7 @@ from agent.graph import create_agent
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database and seed data on startup."""
+    """Initialize database, knowledge base, and agent on startup."""
     setup_logging()
 
     # Check if DB needs seeding
@@ -55,6 +55,23 @@ async def lifespan(app: FastAPI):
         seed_database()
     else:
         logger.info("Database ready with %d customers", count)
+
+    # Initialize RAG knowledge base
+    try:
+        from rag.ingest import ingest_knowledge_base
+        from rag.vector_store import vector_store_exists
+
+        if not vector_store_exists():
+            logger.info("Knowledge base not found — ingesting markdown files...")
+            chunk_count = ingest_knowledge_base()
+            logger.info("Knowledge base ready with %d chunks", chunk_count)
+        else:
+            # Still initialize the vector store to ensure it's cached
+            chunk_count = ingest_knowledge_base()  # Will skip if already populated
+            logger.info("Knowledge base already exists (%d chunks)", chunk_count)
+    except Exception as e:
+        logger.warning("⚠️ Knowledge base initialization failed: %s", e)
+        logger.warning("Agent will work without knowledge base support")
 
     # Create agent
     app.state.agent = create_agent()
@@ -289,10 +306,19 @@ def health_check():
     db = SessionLocal()
     customer_count = db.query(Customer).count()
     db.close()
+    # Get knowledge base status
+    try:
+        from rag.retriever import get_knowledge_base_stats
+        kb_stats = get_knowledge_base_stats()
+        kb_chunks = kb_stats.get("total_chunks", 0)
+    except Exception:
+        kb_chunks = 0
+
     return {
         "status": "healthy",
         "customers": customer_count,
         "agent": "ready",
+        "knowledge_base_chunks": kb_chunks,
     }
 
 
@@ -363,6 +389,16 @@ def get_agent_tools():
                 {"name": "customer_id", "type": "int", "description": "The unique customer ID (required)"},
                 {"name": "product_type", "type": "string", "description": "Product type to promote (required)"},
                 {"name": "channel", "type": "string", "description": "Outreach channel: whatsapp, email, sms (default 'whatsapp')"}
+            ]
+        },
+        {
+            "name": "query_knowledge_base",
+            "description": "Search the banking knowledge base for RBI regulations, detailed product catalog specifications, eligibility criteria, special offers, and compliance rules.",
+            "category": "Knowledge Base",
+            "parameters": [
+                {"name": "query", "type": "string", "description": "Search query for the knowledge base (required)"},
+                {"name": "category", "type": "string", "description": "Filter by category: rbi_rules, product_catalog, eligibility, special_offers"},
+                {"name": "top_k", "type": "int", "description": "Number of results to return (default 5)"}
             ]
         }
     ]
@@ -462,6 +498,31 @@ def get_chat_history(thread_id: str):
         "thread_id": thread_id,
         "messages": serialize_messages(messages)
     }
+
+
+# --- Knowledge Base Endpoints ---
+
+@app.get("/api/v1/knowledge/status")
+def knowledge_base_status():
+    """Check knowledge base status (number of documents, chunks, categories)."""
+    from rag.retriever import get_knowledge_base_stats
+    return get_knowledge_base_stats()
+
+
+@app.post("/api/v1/knowledge/reingest")
+def reingest_knowledge_base():
+    """Re-ingest all knowledge base markdown files (clears and rebuilds)."""
+    from rag.ingest import ingest_knowledge_base
+    count = ingest_knowledge_base(force_reingest=True)
+    return {"status": "success", "chunks_ingested": count}
+
+
+@app.post("/api/v1/knowledge/query")
+def query_knowledge_endpoint(query: str, category: str = None, top_k: int = 5):
+    """Directly query the knowledge base (for testing/debugging)."""
+    from rag.retriever import query_knowledge
+    results = query_knowledge(query, top_k=top_k, category=category)
+    return {"query": query, "results": results, "count": len(results)}
 
 
 # --- WebSocket Chat Endpoint ---
